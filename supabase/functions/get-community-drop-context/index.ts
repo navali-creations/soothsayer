@@ -22,7 +22,6 @@ const CORS_HEADERS = {
 const RATE_LIMIT_MAX = 300;
 const TRUSTED_RATE_LIMIT_MAX = 5_000;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
-const MIN_CONTRIBUTORS = 5;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -139,12 +138,10 @@ Deno.serve(async (req: Request) => {
         p_game: game,
         p_league: league,
         p_card_name: card,
-        p_min_contributors: MIN_CONTRIBUTORS,
       })
     : await supabase.rpc("get_community_league_drop_context", {
         p_game: game,
         p_league: league,
-        p_min_contributors: MIN_CONTRIBUTORS,
       });
   if (error || !data || typeof data !== "object") {
     console.error(

@@ -4,18 +4,46 @@
 
 BEGIN;
 
-SELECT plan(17);
+SELECT plan(22);
 
 SELECT has_function(
   'public',
   'get_community_league_drop_context',
+  ARRAY['text', 'text'],
+  'get_community_league_drop_context(text, text) should exist'
+);
+SELECT has_function(
+  'public',
+  'get_community_league_drop_context',
   ARRAY['text', 'text', 'integer'],
-  'get_community_league_drop_context(text, text, integer) should exist'
+  'the previous threshold signature should remain as a compatibility wrapper'
+);
+SELECT results_eq(
+  $$SELECT pronargdefaults::integer
+    FROM pg_proc
+    WHERE oid = 'public.get_community_league_drop_context(text,text,integer)'::regprocedure$$,
+  ARRAY[0],
+  'the compatibility wrapper should not compete with threshold-free calls'
+);
+SELECT results_eq(
+  $$SELECT has_function_privilege(
+      'service_role',
+      'public.get_community_league_drop_context(text,text,integer)'::regprocedure,
+      'EXECUTE'
+    )
+    UNION ALL
+    SELECT NOT has_function_privilege(
+      'anon',
+      'public.get_community_league_drop_context(text,text,integer)'::regprocedure,
+      'EXECUTE'
+    )$$,
+  ARRAY[true, true],
+  'the compatibility wrapper should remain service-role-only'
 );
 SELECT results_eq(
   $$SELECT has_function_privilege(
     'service_role',
-    'public.get_community_league_drop_context(text,text,integer)'::regprocedure,
+    'public.get_community_league_drop_context(text,text)'::regprocedure,
     'EXECUTE'
   )$$,
   ARRAY[true],
@@ -24,7 +52,7 @@ SELECT results_eq(
 SELECT results_eq(
   $$SELECT NOT has_function_privilege(
     'anon',
-    'public.get_community_league_drop_context(text,text,integer)'::regprocedure,
+    'public.get_community_league_drop_context(text,text)'::regprocedure,
     'EXECUTE'
   )$$,
   ARRAY[true],
@@ -33,17 +61,17 @@ SELECT results_eq(
 SELECT results_eq(
   $$SELECT prosecdef
     FROM pg_proc
-    WHERE oid = 'public.get_community_league_drop_context(text,text,integer)'::regprocedure$$,
+    WHERE oid = 'public.get_community_league_drop_context(text,text)'::regprocedure$$,
   ARRAY[true],
   'bulk aggregate RPC should be SECURITY DEFINER'
 );
 SELECT throws_ok(
-  $$SELECT get_community_league_drop_context('invalid', 'Allflame', 5)$$,
+  $$SELECT get_community_league_drop_context('invalid', 'Allflame')$$,
   '22023', NULL,
   'bulk aggregate RPC should validate its arguments'
 );
 SELECT results_eq(
-  $$SELECT get_community_league_drop_context('poe1', 'missing', 5)->>'reason'$$,
+  $$SELECT get_community_league_drop_context('poe1', 'missing')->>'reason'$$,
   ARRAY['league_not_found'::text],
   'bulk aggregate RPC should distinguish an unknown league'
 );
@@ -99,8 +127,7 @@ SELECT
   60
 FROM generate_series(201, 205) AS number;
 
--- One contributor's extra row remains in safe card totals, while its time and
--- location groups are suppressed.
+-- One contributor's extra row must remain visible in every breakdown.
 INSERT INTO community_drop_events (
   event_id,
   upload_id,
@@ -119,7 +146,7 @@ VALUES (
   60
 );
 
--- A card seen from only four contributors must not appear in the catalog.
+-- A card seen from fewer than five contributors must still appear.
 INSERT INTO community_drop_events (
   event_id,
   upload_id,
@@ -140,80 +167,96 @@ FROM generate_series(201, 204) AS number;
 
 SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
-    'poe1', 'Context Catalog Test', 5
+    'poe1', 'Context Catalog Test'
   )->>'found')::boolean$$,
   ARRAY[true],
   'bulk aggregate should resolve a league by display name'
 );
 SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
-    'poe1', 'context_catalog_test', 5
+    'poe1', 'context_catalog_test'
   )->>'available')::boolean$$,
   ARRAY[true],
-  'bulk aggregate should report qualifying context as available'
+  'bulk aggregate should report context as available'
+);
+SELECT results_eq(
+  $$SELECT NOT (get_community_league_drop_context(
+    'poe1', 'context_catalog_test'
+  ) ? 'min_contributors')$$,
+  ARRAY[true],
+  'bulk output should not advertise a contributor threshold'
 );
 SELECT results_eq(
   $$SELECT jsonb_array_length(get_community_league_drop_context(
-    'poe1', 'context_catalog_test', 5
+    'poe1', 'context_catalog_test'
   )->'cards')$$,
-  ARRAY[1],
-  'cards below the contributor threshold should be omitted'
+  ARRAY[2],
+  'all cards with context should be included'
 );
 SELECT results_eq(
   $$SELECT get_community_league_drop_context(
-    'poe1', 'context_catalog_test', 5
+    'poe1', 'context_catalog_test'
   ) #>> '{cards,0,name}'$$,
-  ARRAY['The Scholar'::text],
+  ARRAY['Below Threshold'::text],
   'bulk cards should be ordered and identified by name'
 );
 SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
-    'poe1', 'context_catalog_test', 5
-  ) #>> '{cards,0,observed_events}')::bigint$$,
+    'poe1', 'context_catalog_test'
+  ) #>> '{cards,1,observed_events}')::bigint$$,
   ARRAY[6::bigint],
-  'safe card totals should include all events from eligible cards'
+  'card totals should include all events'
 );
 SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
-    'poe1', 'context_catalog_test', 5
-  ) #>> '{cards,0,local_time_buckets,40,count}')::bigint$$,
+    'poe1', 'context_catalog_test'
+  ) #>> '{cards,1,local_time_buckets,40,count}')::bigint$$,
   ARRAY[5::bigint],
   'bulk local time should use 15-minute buckets'
 );
 SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
-    'poe1', 'context_catalog_test', 5
-  ) #>> '{cards,0,local_time_buckets,40,locations,0,count}')::bigint$$,
+    'poe1', 'context_catalog_test'
+  ) #>> '{cards,1,local_time_buckets,40,locations,0,count}')::bigint$$,
   ARRAY[5::bigint],
-  'a local bucket should include locations shared by five contributors'
+  'a local bucket should include its locations'
 );
 SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
-    'poe1', 'context_catalog_test', 5
-  ) #>> '{cards,0,local_time_buckets,60,count}')::bigint$$,
-  ARRAY[0::bigint],
-  'a local bucket from one contributor should be suppressed'
+    'poe1', 'context_catalog_test'
+  ) #>> '{cards,1,local_time_buckets,60,count}')::bigint$$,
+  ARRAY[1::bigint],
+  'a local bucket from one contributor should be published'
 );
 SELECT results_eq(
   $$SELECT jsonb_array_length(get_community_league_drop_context(
-    'poe1', 'context_catalog_test', 5
-  ) #> '{cards,0,local_time_buckets,60,locations}')$$,
-  ARRAY[0],
-  'suppressed local buckets should not expose locations'
+    'poe1', 'context_catalog_test'
+  ) #> '{cards,1,local_time_buckets,60,locations}')$$,
+  ARRAY[1],
+  'a single-contributor local bucket should include its location'
 );
 SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
-    'poe1', 'context_catalog_test', 5
-  ) #>> '{cards,0,utc_time_buckets,36,count}')::bigint$$,
+    'poe1', 'context_catalog_test'
+  ) #>> '{cards,1,utc_time_buckets,36,count}')::bigint$$,
   ARRAY[5::bigint],
   'bulk UTC time should be derived from local minute and offset'
 );
 SELECT results_eq(
   $$SELECT jsonb_array_length(get_community_league_drop_context(
+    'poe1', 'context_catalog_test'
+  ) #> '{cards,1,locations}')$$,
+  ARRAY[2],
+  'all global locations should be published'
+);
+SELECT results_eq(
+  $$SELECT get_community_league_drop_context(
     'poe1', 'context_catalog_test', 5
-  ) #> '{cards,0,locations}')$$,
-  ARRAY[1],
-  'global locations below the contributor threshold should be suppressed'
+  ) = get_community_league_drop_context(
+    'poe1', 'context_catalog_test'
+  )$$,
+  ARRAY[true],
+  'the previous signature should return threshold-free aggregates'
 );
 
 SELECT * FROM finish();

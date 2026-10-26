@@ -1,21 +1,49 @@
 -- =============================================================================
--- Community drop context public aggregation and privacy thresholds
+-- Community drop context public aggregation
 -- =============================================================================
 
 BEGIN;
 
-SELECT plan(15);
+SELECT plan(20);
 
 SELECT has_function(
   'public',
   'get_community_drop_context',
+  ARRAY['text', 'text', 'text'],
+  'get_community_drop_context(text, text, text) should exist'
+);
+SELECT has_function(
+  'public',
+  'get_community_drop_context',
   ARRAY['text', 'text', 'text', 'integer'],
-  'get_community_drop_context(text, text, text, integer) should exist'
+  'the previous threshold signature should remain as a compatibility wrapper'
+);
+SELECT results_eq(
+  $$SELECT pronargdefaults::integer
+    FROM pg_proc
+    WHERE oid = 'public.get_community_drop_context(text,text,text,integer)'::regprocedure$$,
+  ARRAY[0],
+  'the compatibility wrapper should not compete with threshold-free calls'
+);
+SELECT results_eq(
+  $$SELECT has_function_privilege(
+      'service_role',
+      'public.get_community_drop_context(text,text,text,integer)'::regprocedure,
+      'EXECUTE'
+    )
+    UNION ALL
+    SELECT NOT has_function_privilege(
+      'anon',
+      'public.get_community_drop_context(text,text,text,integer)'::regprocedure,
+      'EXECUTE'
+    )$$,
+  ARRAY[true, true],
+  'the compatibility wrapper should remain service-role-only'
 );
 SELECT results_eq(
   $$SELECT has_function_privilege(
     'service_role',
-    'public.get_community_drop_context(text,text,text,integer)'::regprocedure,
+    'public.get_community_drop_context(text,text,text)'::regprocedure,
     'EXECUTE'
   )$$,
   ARRAY[true],
@@ -24,7 +52,7 @@ SELECT results_eq(
 SELECT results_eq(
   $$SELECT NOT has_function_privilege(
     'anon',
-    'public.get_community_drop_context(text,text,text,integer)'::regprocedure,
+    'public.get_community_drop_context(text,text,text)'::regprocedure,
     'EXECUTE'
   )$$,
   ARRAY[true],
@@ -33,17 +61,17 @@ SELECT results_eq(
 SELECT results_eq(
   $$SELECT prosecdef
     FROM pg_proc
-    WHERE oid = 'public.get_community_drop_context(text,text,text,integer)'::regprocedure$$,
+    WHERE oid = 'public.get_community_drop_context(text,text,text)'::regprocedure$$,
   ARRAY[true],
   'aggregate RPC should be SECURITY DEFINER'
 );
 SELECT throws_ok(
-  $$SELECT get_community_drop_context('invalid', 'Allflame', 'The Scholar', 5)$$,
+  $$SELECT get_community_drop_context('invalid', 'Allflame', 'The Scholar')$$,
   '22023', NULL,
   'aggregate RPC should validate its arguments'
 );
 SELECT results_eq(
-  $$SELECT get_community_drop_context('poe1', 'missing', 'The Scholar', 5)->>'reason'$$,
+  $$SELECT get_community_drop_context('poe1', 'missing', 'The Scholar')->>'reason'$$,
   ARRAY['league_not_found'::text],
   'aggregate RPC should distinguish an unknown league'
 );
@@ -81,17 +109,17 @@ FROM generate_series(201, 205) AS number;
 
 SELECT results_eq(
   $$SELECT get_community_drop_context(
-    'poe1', 'context_api_test', 'Missing Card', 5
+    'poe1', 'context_api_test', 'Missing Card'
   )->>'reason'$$,
   ARRAY['card_not_found'::text],
   'aggregate RPC should distinguish an unknown card'
 );
 SELECT results_eq(
   $$SELECT (get_community_drop_context(
-    'poe1', 'context_api_test', 'The Scholar', 5
+    'poe1', 'context_api_test', 'The Scholar'
   )->>'available')::boolean$$,
   ARRAY[false],
-  'aggregate output should remain unavailable below the privacy threshold'
+  'aggregate output should remain unavailable without matching events'
 );
 
 INSERT INTO community_drop_events (
@@ -112,8 +140,7 @@ SELECT
   60
 FROM generate_series(201, 205) AS number;
 
--- One contributor's extra row is counted in the safe overall/timezone totals,
--- but its unique location and time bucket must not be published.
+-- One contributor's extra row must be included in every aggregate breakdown.
 INSERT INTO community_drop_events (
   event_id,
   upload_id,
@@ -134,54 +161,70 @@ VALUES (
 
 SELECT results_eq(
   $$SELECT (get_community_drop_context(
-    'poe1', 'Context API Test', 'The Scholar', 5
+    'poe1', 'Context API Test', 'The Scholar'
   )->>'available')::boolean$$,
   ARRAY[true],
-  'aggregate output should become available at five contributors'
+  'aggregate output should become available with matching context'
+);
+SELECT results_eq(
+  $$SELECT NOT (get_community_drop_context(
+    'poe1', 'Context API Test', 'The Scholar'
+  ) ? 'min_contributors')$$,
+  ARRAY[true],
+  'aggregate output should not advertise a contributor threshold'
 );
 SELECT results_eq(
   $$SELECT (get_community_drop_context(
-    'poe1', 'context_api_test', 'The Scholar', 5
+    'poe1', 'context_api_test', 'The Scholar'
   )->>'observed_events')::bigint$$,
   ARRAY[6::bigint],
-  'safe overall totals should include all eligible events'
+  'overall totals should include all events'
 );
 SELECT results_eq(
   $$SELECT (get_community_drop_context(
-    'poe1', 'context_api_test', 'The Scholar', 5
+    'poe1', 'context_api_test', 'The Scholar'
   ) #>> '{local_time_buckets,40,count}')::bigint$$,
   ARRAY[5::bigint],
   'local time should use 15-minute buckets'
 );
 SELECT results_eq(
   $$SELECT (get_community_drop_context(
-    'poe1', 'context_api_test', 'The Scholar', 5
+    'poe1', 'context_api_test', 'The Scholar'
   ) #>> '{utc_time_buckets,36,count}')::bigint$$,
   ARRAY[5::bigint],
   'UTC time should be derived from local minute and offset'
 );
 SELECT results_eq(
   $$SELECT (get_community_drop_context(
-    'poe1', 'context_api_test', 'The Scholar', 5
+    'poe1', 'context_api_test', 'The Scholar'
   ) #>> '{local_time_buckets,60,count}')::bigint$$,
-  ARRAY[0::bigint],
-  'a time bucket from one contributor should be suppressed'
+  ARRAY[1::bigint],
+  'a time bucket from one contributor should be published'
 );
 SELECT results_eq(
   $$SELECT (get_community_drop_context(
-    'poe1', 'context_api_test', 'The Scholar', 5
+    'poe1', 'context_api_test', 'The Scholar'
   ) #>> '{locations,0,count}')::bigint$$,
   ARRAY[5::bigint],
-  'a location shared by five contributors should be published'
+  'locations should remain ordered by event count'
 );
 SELECT results_eq(
   $$SELECT jsonb_array_length(
     get_community_drop_context(
-      'poe1', 'context_api_test', 'The Scholar', 5
+      'poe1', 'context_api_test', 'The Scholar'
     )->'locations'
   )$$,
-  ARRAY[1],
-  'a location from one contributor should be suppressed'
+  ARRAY[2],
+  'a location from one contributor should be published'
+);
+SELECT results_eq(
+  $$SELECT get_community_drop_context(
+    'poe1', 'context_api_test', 'The Scholar', 5
+  ) = get_community_drop_context(
+    'poe1', 'context_api_test', 'The Scholar'
+  )$$,
+  ARRAY[true],
+  'the previous signature should return threshold-free aggregates'
 );
 
 SELECT * FROM finish();

@@ -120,7 +120,7 @@ quietTest(
 );
 
 quietTest(
-  "get-community-drop-context — returns private aggregate output",
+  "get-community-drop-context — returns aggregate output without a contributor threshold",
   async () => {
     const result = {
       found: true,
@@ -129,8 +129,7 @@ quietTest(
       league: "Allflame",
       card: "The Scholar",
       bucket_minutes: 15,
-      min_contributors: 5,
-      contributors: 5,
+      contributors: 1,
       observed_events: 10,
       local_time_buckets: [{ minute: 0, count: 0 }],
       utc_time_buckets: [{ minute: 0, count: 0 }],
@@ -144,6 +143,15 @@ quietTest(
     assertEquals(response.status, 200);
     assertEquals(response.headers.get("cache-control"), "public, max-age=300");
     assertEquals(await responseBody(response), result);
+    const aggregateCall = fetchMock.calls.find((call) =>
+      call.url.includes("get_community_drop_context"),
+    );
+    assert(aggregateCall);
+    assertEquals(JSON.parse(String(aggregateCall.init?.body)), {
+      p_game: "poe1",
+      p_league: "Allflame",
+      p_card_name: "The Scholar",
+    });
     fetchMock.restore();
   },
 );
@@ -157,11 +165,10 @@ quietTest(
       game: "poe1",
       league: "Allflame",
       bucket_minutes: 15,
-      min_contributors: 5,
       cards: [
         {
           name: "The Scholar",
-          contributors: 5,
+          contributors: 1,
           observed_events: 10,
           local_time_buckets: [
             {
@@ -192,7 +199,6 @@ quietTest(
     assertEquals(JSON.parse(String(aggregateCall.init?.body)), {
       p_game: "poe1",
       p_league: "Allflame",
-      p_min_contributors: 5,
     });
     fetchMock.restore();
   },
