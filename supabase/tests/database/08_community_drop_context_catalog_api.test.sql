@@ -4,13 +4,30 @@
 
 BEGIN;
 
-SELECT plan(22);
+SELECT plan(35);
+
+SELECT has_index(
+  'public', 'community_drop_events',
+  'idx_community_drop_events_upload_context',
+  'league context scans should have a covering upload-first event index'
+);
+SELECT has_index(
+  'public', 'community_uploads',
+  'idx_community_uploads_league_context',
+  'league context scans should have a covering league/upload index'
+);
 
 SELECT has_function(
   'public',
   'get_community_league_drop_context',
   ARRAY['text', 'text'],
   'get_community_league_drop_context(text, text) should exist'
+);
+SELECT has_function(
+  'public',
+  'get_community_league_drop_context_static',
+  ARRAY['text', 'text'],
+  'get_community_league_drop_context_static(text, text) should exist'
 );
 SELECT has_function(
   'public',
@@ -59,6 +76,24 @@ SELECT results_eq(
   'anon should not execute the bulk aggregate RPC directly'
 );
 SELECT results_eq(
+  $$SELECT has_function_privilege(
+    'service_role',
+    'public.get_community_league_drop_context_static(text,text)'::regprocedure,
+    'EXECUTE'
+  )$$,
+  ARRAY[true],
+  'service_role should be able to build the static context projection'
+);
+SELECT results_eq(
+  $$SELECT NOT has_function_privilege(
+    'anon',
+    'public.get_community_league_drop_context_static(text,text)'::regprocedure,
+    'EXECUTE'
+  )$$,
+  ARRAY[true],
+  'anon should not execute the static context projection directly'
+);
+SELECT results_eq(
   $$SELECT prosecdef
     FROM pg_proc
     WHERE oid = 'public.get_community_league_drop_context(text,text)'::regprocedure$$,
@@ -70,10 +105,22 @@ SELECT throws_ok(
   '22023', NULL,
   'bulk aggregate RPC should validate its arguments'
 );
+SELECT throws_ok(
+  $$SELECT get_community_league_drop_context_static('invalid', 'Allflame')$$,
+  '22023', NULL,
+  'static context projection should validate its arguments'
+);
 SELECT results_eq(
   $$SELECT get_community_league_drop_context('poe1', 'missing')->>'reason'$$,
   ARRAY['league_not_found'::text],
   'bulk aggregate RPC should distinguish an unknown league'
+);
+SELECT results_eq(
+  $$SELECT get_community_league_drop_context_static(
+    'poe1', 'missing'
+  )->>'reason'$$,
+  ARRAY['league_not_found'::text],
+  'static context projection should distinguish an unknown league'
 );
 
 INSERT INTO poe_leagues (id, game, league_id, name, is_active)
@@ -107,7 +154,11 @@ SELECT
   false,
   1,
   1
-FROM generate_series(201, 205) AS number;
+FROM generate_series(201, 206) AS number;
+
+UPDATE community_uploads
+SET is_suspicious = true
+WHERE id = 'fc000000-0000-0000-0000-000000000206';
 
 INSERT INTO community_drop_events (
   event_id,
@@ -125,7 +176,7 @@ SELECT
    WHERE game = 'poe1' AND name = 'Atlas Hideout'),
   600,
   60
-FROM generate_series(201, 205) AS number;
+FROM generate_series(201, 206) AS number;
 
 -- One contributor's extra row must remain visible in every breakdown.
 INSERT INTO community_drop_events (
@@ -204,22 +255,22 @@ SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
     'poe1', 'context_catalog_test'
   ) #>> '{cards,1,observed_events}')::bigint$$,
-  ARRAY[6::bigint],
-  'card totals should include all events'
+  ARRAY[7::bigint],
+  'card totals should include all events, including suspicious uploads'
 );
 SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
     'poe1', 'context_catalog_test'
   ) #>> '{cards,1,local_time_buckets,40,count}')::bigint$$,
-  ARRAY[5::bigint],
-  'bulk local time should use 15-minute buckets'
+  ARRAY[6::bigint],
+  'bulk local time should include suspicious uploads in 15-minute buckets'
 );
 SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
     'poe1', 'context_catalog_test'
   ) #>> '{cards,1,local_time_buckets,40,locations,0,count}')::bigint$$,
-  ARRAY[5::bigint],
-  'a local bucket should include its locations'
+  ARRAY[6::bigint],
+  'a local bucket should include locations from every upload'
 );
 SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
@@ -239,8 +290,8 @@ SELECT results_eq(
   $$SELECT (get_community_league_drop_context(
     'poe1', 'context_catalog_test'
   ) #>> '{cards,1,utc_time_buckets,36,count}')::bigint$$,
-  ARRAY[5::bigint],
-  'bulk UTC time should be derived from local minute and offset'
+  ARRAY[6::bigint],
+  'bulk UTC time should be derived from every event'
 );
 SELECT results_eq(
   $$SELECT jsonb_array_length(get_community_league_drop_context(
@@ -257,6 +308,49 @@ SELECT results_eq(
   )$$,
   ARRAY[true],
   'the previous signature should return threshold-free aggregates'
+);
+
+SELECT results_eq(
+  $$SELECT (get_community_league_drop_context_static(
+    'poe1', 'Context Catalog Test'
+  )->>'found')::boolean$$,
+  ARRAY[true],
+  'static context projection should resolve a league by display name'
+);
+SELECT results_eq(
+  $$SELECT jsonb_array_length(get_community_league_drop_context_static(
+    'poe1', 'context_catalog_test'
+  )->'cards')$$,
+  ARRAY[2],
+  'static context projection should include every observed card'
+);
+SELECT results_eq(
+  $$SELECT get_community_league_drop_context_static(
+    'poe1', 'context_catalog_test'
+  ) #>> '{cards,1,name}'$$,
+  ARRAY['The Scholar'::text],
+  'static context projection should order cards by name'
+);
+SELECT results_eq(
+  $$SELECT (get_community_league_drop_context_static(
+    'poe1', 'context_catalog_test'
+  ) #>> '{cards,1,local_time_buckets,40,count}')::bigint$$,
+  ARRAY[6::bigint],
+  'static context projection should include suspicious uploads'
+);
+SELECT results_eq(
+  $$SELECT (get_community_league_drop_context_static(
+    'poe1', 'context_catalog_test'
+  ) #>> '{cards,1,utc_time_buckets,36,count}')::bigint$$,
+  ARRAY[6::bigint],
+  'static context projection should normalize every event to UTC'
+);
+SELECT results_eq(
+  $$SELECT jsonb_array_length(get_community_league_drop_context_static(
+    'poe1', 'context_catalog_test'
+  ) #> '{cards,1,locations}')$$,
+  ARRAY[2],
+  'static context projection should publish global locations'
 );
 
 SELECT * FROM finish();

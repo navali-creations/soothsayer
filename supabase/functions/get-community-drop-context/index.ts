@@ -111,6 +111,7 @@ Deno.serve(async (req: Request) => {
   const game = url.searchParams.get("game");
   const league = url.searchParams.get("league")?.trim() ?? "";
   const card = url.searchParams.get("card")?.trim() ?? "";
+  const projection = url.searchParams.get("projection")?.trim() ?? "";
   if (game !== "poe1" && game !== "poe2") {
     return responseJson({
       status: 400,
@@ -132,6 +133,20 @@ Deno.serve(async (req: Request) => {
       headers: CORS_HEADERS,
     });
   }
+  if (projection !== "" && projection !== "static") {
+    return responseJson({
+      status: 400,
+      body: { error: "Invalid 'projection' parameter" },
+      headers: CORS_HEADERS,
+    });
+  }
+  if (card && projection) {
+    return responseJson({
+      status: 400,
+      body: { error: "'projection' is only supported for league catalogs" },
+      headers: CORS_HEADERS,
+    });
+  }
 
   const { data, error } = card
     ? await supabase.rpc("get_community_drop_context", {
@@ -139,10 +154,15 @@ Deno.serve(async (req: Request) => {
         p_league: league,
         p_card_name: card,
       })
-    : await supabase.rpc("get_community_league_drop_context", {
-        p_game: game,
-        p_league: league,
-      });
+    : projection === "static"
+      ? await supabase.rpc("get_community_league_drop_context_static", {
+          p_game: game,
+          p_league: league,
+        })
+      : await supabase.rpc("get_community_league_drop_context", {
+          p_game: game,
+          p_league: league,
+        });
   if (error || !data || typeof data !== "object") {
     console.error(
       "[get-community-drop-context] Aggregation failed:",

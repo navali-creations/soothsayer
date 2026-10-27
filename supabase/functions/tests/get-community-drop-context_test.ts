@@ -24,6 +24,7 @@ const FUNCTION_URL =
   "http://localhost/get-community-drop-context?game=poe1&league=Allflame&card=The%20Scholar";
 const LEAGUE_FUNCTION_URL =
   "http://localhost/get-community-drop-context?game=poe1&league=Allflame";
+const STATIC_FUNCTION_URL = `${LEAGUE_FUNCTION_URL}&projection=static`;
 
 function request(
   url = FUNCTION_URL,
@@ -42,6 +43,10 @@ function setupRpcMocks(contextResult: unknown, contextStatus = 200) {
   );
   fetchMock.onUrlContaining(
     supabaseUrls.rpc("get_community_drop_context"),
+    () => rpcResponse(contextResult, contextStatus),
+  );
+  fetchMock.onUrlContaining(
+    supabaseUrls.rpc("get_community_league_drop_context_static"),
     () => rpcResponse(contextResult, contextStatus),
   );
   fetchMock.onUrlContaining(
@@ -103,6 +108,27 @@ quietTest(
     assertEquals(response.status, 400);
     assertEquals(await responseBody(response), {
       error: "Invalid 'card' parameter",
+    });
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "get-community-drop-context — validates the static projection parameter",
+  async () => {
+    const fetchMock = setupRpcMocks({});
+    const invalid = await handler(
+      request(`${LEAGUE_FUNCTION_URL}&projection=everything`),
+    );
+    assertEquals(invalid.status, 400);
+    assertEquals(await responseBody(invalid), {
+      error: "Invalid 'projection' parameter",
+    });
+
+    const perCard = await handler(request(`${FUNCTION_URL}&projection=static`));
+    assertEquals(perCard.status, 400);
+    assertEquals(await responseBody(perCard), {
+      error: "'projection' is only supported for league catalogs",
     });
     fetchMock.restore();
   },
@@ -194,6 +220,45 @@ quietTest(
     assertEquals(await responseBody(response), result);
     const aggregateCall = fetchMock.calls.find((call) =>
       call.url.includes("get_community_league_drop_context"),
+    );
+    assert(aggregateCall);
+    assertEquals(JSON.parse(String(aggregateCall.init?.body)), {
+      p_game: "poe1",
+      p_league: "Allflame",
+    });
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "get-community-drop-context — uses the lean projection for static publishing",
+  async () => {
+    const result = {
+      found: true,
+      available: true,
+      game: "poe1",
+      league: "Allflame",
+      bucket_minutes: 15,
+      cards: [
+        {
+          name: "The Scholar",
+          local_time_buckets: [{ minute: 0, count: 10 }],
+          utc_time_buckets: [{ minute: 1380, count: 10 }],
+          locations: [{ name: "Atlas Hideout", count: 10 }],
+        },
+      ],
+    };
+    const fetchMock = setupRpcMocks(result);
+    const response = await handler(
+      request(STATIC_FUNCTION_URL, {
+        "x-caller-token": "test-caller-token",
+      }),
+    );
+
+    assertEquals(response.status, 200);
+    assertEquals(await responseBody(response), result);
+    const aggregateCall = fetchMock.calls.find((call) =>
+      call.url.includes("get_community_league_drop_context_static"),
     );
     assert(aggregateCall);
     assertEquals(JSON.parse(String(aggregateCall.init?.body)), {
