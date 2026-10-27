@@ -98,7 +98,7 @@ export interface CardEventContextUpdate {
   sourceEventId: string;
   cardName: string;
   droppedAt: string;
-  location: string;
+  location: string | null;
   localMinute: number;
   utcOffsetMinutes: number;
   league: string;

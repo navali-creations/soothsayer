@@ -264,7 +264,6 @@ class MainWindowService {
 
     // 8. Community upload (depends on database + settings + supabase)
     const communityUpload = CommunityUploadService.getInstance();
-    void communityUpload.flushPendingUploads();
     console.log("[Init] ✓ Community Upload");
 
     // 8a. Banners (depends on database — persistent banner dismissal)
@@ -314,6 +313,17 @@ class MainWindowService {
       });
       this.clientLogReaderListenerRegistered = true;
     }
+    // The time-context migration can queue historical rows without locations.
+    // Let Client.txt enrich those rows before the first upload so the same
+    // event ID is never submitted once without a location and again with one.
+    void clientLogReader
+      .runHistoricalContextBackfillOnce()
+      .catch(() => {
+        console.warn(
+          "[Init] Historical card context backfill failed; flushing the existing upload queue",
+        );
+      })
+      .then(() => communityUpload.flushPendingUploads());
     console.log("[Init] ✓ Client Log Reader");
 
     console.log("[Init] All services initialized successfully");

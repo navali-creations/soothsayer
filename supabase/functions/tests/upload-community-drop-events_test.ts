@@ -138,6 +138,26 @@ quietTest(
 );
 
 quietTest(
+  "upload-community-drop-events — accepts time context without a location",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    setupHappyPath(fetchMock);
+    const body = validBody({
+      events: [{ ...validBody().events[0], location: null }],
+    });
+
+    const response = await handler(createAuthorizedRequest(FUNCTION_URL, body));
+
+    assertEquals(response.status, 200);
+    const rpcCall = fetchMock.calls.find((call) =>
+      call.url.includes("ingest_community_drop_events"),
+    );
+    assertEquals(JSON.parse(String(rpcCall?.init?.body)).p_events, body.events);
+    fetchMock.restore();
+  },
+);
+
+quietTest(
   "upload-community-drop-events — rejects oversized request bodies",
   async () => {
     const fetchMock = setupAuthorizedMocks();

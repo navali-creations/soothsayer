@@ -46,6 +46,7 @@ const {
   mockSupabaseIsConfigured,
   mockClientLogOn,
   mockClientLogGetInstance,
+  mockClientLogBackfill,
   mockCommunityUploadFlush,
 } = vi.hoisted(() => {
   class _MockIpcValidationError extends Error {
@@ -107,9 +108,14 @@ const {
     MockIpcValidationError: _MockIpcValidationError,
     mockSupabaseIsConfigured: vi.fn(() => true),
     mockClientLogOn: vi.fn().mockReturnThis(),
+    mockClientLogBackfill: vi.fn().mockResolvedValue({
+      status: "complete",
+      enrichedEvents: 0,
+    }),
     mockClientLogGetInstance: vi.fn(() =>
       Promise.resolve({
         on: mockClientLogOn,
+        runHistoricalContextBackfillOnce: mockClientLogBackfill,
       }),
     ),
     mockCommunityUploadFlush: vi.fn().mockResolvedValue(undefined),
@@ -716,6 +722,38 @@ describe("MainWindowService", () => {
       await service.createMainWindow();
 
       expect(CommunityUploadService.getInstance).toHaveBeenCalled();
+    });
+
+    it("waits for historical context enrichment before the startup upload", async () => {
+      let finishBackfill: (() => void) | undefined;
+      mockClientLogBackfill.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishBackfill = () =>
+            resolve({ status: "complete", enrichedEvents: 1 });
+        }),
+      );
+
+      await service.createMainWindow();
+      expect(mockClientLogBackfill).toHaveBeenCalledTimes(1);
+      expect(mockCommunityUploadFlush).not.toHaveBeenCalled();
+
+      finishBackfill?.();
+      await vi.waitFor(() => {
+        expect(mockCommunityUploadFlush).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it("flushes the existing queue when historical enrichment fails", async () => {
+      mockClientLogBackfill.mockRejectedValueOnce(new Error("scan failed"));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await service.createMainWindow();
+      await vi.waitFor(() => {
+        expect(mockCommunityUploadFlush).toHaveBeenCalledTimes(1);
+      });
+      expect(warn).toHaveBeenCalledWith(
+        "[Init] Historical card context backfill failed; flushing the existing upload queue",
+      );
     });
 
     it("flushes contextual events after historical backfill queues them", async () => {

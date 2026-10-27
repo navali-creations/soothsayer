@@ -340,7 +340,7 @@ function initializeSchema(db: Database.Database): void {
         game TEXT NOT NULL CHECK (game IN ('poe1', 'poe2')),
         scope TEXT NOT NULL,
         card_name TEXT NOT NULL,
-        location TEXT NOT NULL CHECK (length(location) BETWEEN 1 AND 200),
+        location TEXT CHECK (location IS NULL OR length(location) BETWEEN 1 AND 200),
         local_minute INTEGER NOT NULL CHECK (local_minute BETWEEN 0 AND 1439),
         utc_offset_minutes INTEGER NOT NULL CHECK (utc_offset_minutes BETWEEN -840 AND 840),
         created_at TEXT NOT NULL DEFAULT (datetime('now'))

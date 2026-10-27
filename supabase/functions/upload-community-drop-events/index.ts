@@ -16,7 +16,7 @@ const MAX_DISTINCT_LOCATIONS_PER_BATCH = 100;
 interface DropEvent {
   event_id: string;
   card_name: string;
-  location: string;
+  location: string | null;
   local_minute: number;
   utc_offset_minutes: number;
 }
@@ -107,9 +107,10 @@ function validateBody(
       return { ok: false, error: `events[${index}].card_name is invalid` };
     }
     if (
-      typeof row.location !== "string" ||
-      row.location.trim().length === 0 ||
-      row.location.trim().length > 200
+      row.location !== null &&
+      (typeof row.location !== "string" ||
+        row.location.trim().length === 0 ||
+        row.location.trim().length > 200)
     ) {
       return { ok: false, error: `events[${index}].location is invalid` };
     }
@@ -133,13 +134,16 @@ function validateBody(
       };
     }
 
-    const location = row.location.trim();
-    locations.add(location);
-    if (locations.size > MAX_DISTINCT_LOCATIONS_PER_BATCH) {
-      return {
-        ok: false,
-        error: `events may contain at most ${MAX_DISTINCT_LOCATIONS_PER_BATCH} distinct locations`,
-      };
+    const location =
+      typeof row.location === "string" ? row.location.trim() : null;
+    if (location !== null) {
+      locations.add(location);
+      if (locations.size > MAX_DISTINCT_LOCATIONS_PER_BATCH) {
+        return {
+          ok: false,
+          error: `events may contain at most ${MAX_DISTINCT_LOCATIONS_PER_BATCH} distinct locations`,
+        };
+      }
     }
 
     events.push({

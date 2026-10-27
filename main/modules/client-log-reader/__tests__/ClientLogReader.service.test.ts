@@ -864,7 +864,7 @@ describe("ClientLogReaderService", () => {
       consoleSpy.mockRestore();
     });
 
-    it("skips cards without usable context and flushes large scans in bounded batches", async () => {
+    it("collects time without a location and flushes large scans in bounded batches", async () => {
       const service = await ClientLogReaderService.getInstance(
         mockMainWindow as any,
       );
@@ -896,13 +896,16 @@ describe("ClientLogReaderService", () => {
           "/game/client.txt",
           "poe1",
         ),
-      ).resolves.toBe(100);
+      ).resolves.toBe(101);
 
-      expect(mockFindHistoricalCardEventCandidate).toHaveBeenCalledTimes(101);
-      expect(mockApplyHistoricalCardEventContexts).toHaveBeenCalledOnce();
+      expect(mockFindHistoricalCardEventCandidate).toHaveBeenCalledTimes(102);
+      expect(mockApplyHistoricalCardEventContexts).toHaveBeenCalledTimes(2);
       expect(
         mockApplyHistoricalCardEventContexts.mock.calls[0][1],
       ).toHaveLength(100);
+      expect(
+        mockApplyHistoricalCardEventContexts.mock.calls[1][1],
+      ).toHaveLength(1);
     });
 
     it("returns immediately after the feature backfill has completed", async () => {
@@ -983,11 +986,11 @@ describe("ClientLogReaderService", () => {
       );
 
       expect(mockSetMetadata).toHaveBeenCalledWith(
-        "historical_card_context_backfill_v1:poe1",
+        "historical_card_time_context_backfill_v2:poe1",
         "complete",
       );
       expect(mockSetMetadata).toHaveBeenCalledWith(
-        "historical_card_context_backfill_v1:poe2",
+        "historical_card_time_context_backfill_v2:poe2",
         "complete",
       );
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -1010,12 +1013,12 @@ describe("ClientLogReaderService", () => {
       expect(mockSetMetadata).toHaveBeenCalledTimes(2);
       expect(mockSetMetadata).toHaveBeenNthCalledWith(
         1,
-        "historical_card_context_backfill_v1:poe1",
+        "historical_card_time_context_backfill_v2:poe1",
         "complete",
       );
       expect(mockSetMetadata).toHaveBeenNthCalledWith(
         2,
-        "historical_card_context_backfill_v1:poe2",
+        "historical_card_time_context_backfill_v2:poe2",
         "complete",
       );
     });
@@ -1035,7 +1038,7 @@ describe("ClientLogReaderService", () => {
       expect(mockCreateReadStream).not.toHaveBeenCalled();
       expect(mockSetMetadata).toHaveBeenCalledOnce();
       expect(mockSetMetadata).toHaveBeenCalledWith(
-        "historical_card_context_backfill_v1:poe2",
+        "historical_card_time_context_backfill_v2:poe2",
         "complete",
       );
     });
@@ -1072,10 +1075,10 @@ describe("ClientLogReaderService", () => {
         { encoding: "utf8" },
       );
       expect(completedKeys).toContain(
-        "historical_card_context_backfill_v1:poe1",
+        "historical_card_time_context_backfill_v2:poe1",
       );
       expect(completedKeys).not.toContain(
-        "historical_card_context_backfill_v1:poe2",
+        "historical_card_time_context_backfill_v2:poe2",
       );
     });
 

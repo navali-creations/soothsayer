@@ -22,7 +22,7 @@ import { ClientLogReaderRepository } from "./ClientLogReader.repository";
 import { findLatestLocation, parseCards, parseClientLogLine } from "./utils";
 
 const HISTORICAL_CONTEXT_BACKFILL_KEY_PREFIX =
-  "historical_card_context_backfill_v1";
+  "historical_card_time_context_backfill_v2";
 const HISTORICAL_CONTEXT_BACKFILL_COMPLETE = "complete";
 const ClientLogReaderEvent = {
   HistoricalContextQueued: "historical-context-queued",
@@ -474,8 +474,6 @@ class ClientLogReaderService extends EventEmitter {
         currentLocation = record.location;
         continue;
       }
-      if (!record.event.location) continue;
-
       const candidate = this.session.findHistoricalCardEventCandidate(
         game,
         record.event.cardName,

@@ -210,6 +210,19 @@ describe("CurrentSessionRepository", () => {
         "poe1",
         [],
       );
+      await getTestDb()
+        .kysely.insertInto("community_drop_event_outbox")
+        .values({
+          event_id: candidate!.eventId,
+          session_id: candidate!.sessionId,
+          game: "poe1",
+          scope: "Keepers",
+          card_name: "The Scholar",
+          location: null,
+          local_minute: 624,
+          utc_offset_minutes: 60,
+        })
+        .execute();
       const update = {
         id: candidate!.id,
         eventId: candidate!.eventId,

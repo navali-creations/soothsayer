@@ -26,6 +26,7 @@ import { migration_20260625_120000_remove_stash_pricing } from "./20260625_12000
 import { migration_20260626_120000_add_filter_tier_styles } from "./20260626_120000_add_filter_tier_styles";
 import { migration_20261025_120000_remove_retired_analytics_storage } from "./20261025_120000_remove_retired_analytics_storage";
 import { migration_20261025_130000_add_card_drop_context } from "./20261025_130000_add_card_drop_context";
+import { migration_20261027_120000_allow_time_only_drop_context } from "./20261027_120000_allow_time_only_drop_context";
 import type { Migration } from "./Migration.interface";
 
 /**
@@ -64,6 +65,7 @@ export const migrations: Migration[] = [
   migration_20260626_120000_add_filter_tier_styles,
   migration_20261025_120000_remove_retired_analytics_storage,
   migration_20261025_130000_add_card_drop_context,
+  migration_20261027_120000_allow_time_only_drop_context,
 ];
 
 export type { Migration } from "./Migration.interface";

@@ -189,9 +189,7 @@ export class CurrentSessionRepository {
         processedId: params.processedId,
         cardName: params.cardName,
       });
-      if (params.location) {
-        insertCommunityDropEvent.run(params);
-      }
+      insertCommunityDropEvent.run(params);
       incrementGlobalStat.run();
       upsertAllTimeCard.run({
         game: params.game,
@@ -243,7 +241,7 @@ export class CurrentSessionRepository {
       .innerJoin("sessions as s", "s.id", "sce.session_id")
       .select("sce.id")
       .where("s.game", "=", game)
-      .where("sce.location", "is", null)
+      .where("sce.source_event_id", "is", null)
       .where("sce.event_id", "is not", null)
       .limit(1)
       .executeTakeFirst();
@@ -271,7 +269,7 @@ export class CurrentSessionRepository {
           JOIN leagues l ON l.id = s.league_id
           WHERE s.game = @game
             AND sce.card_name = @cardName
-            AND sce.location IS NULL
+            AND sce.source_event_id IS NULL
             AND sce.event_id IS NOT NULL
             AND sce.dropped_at BETWEEN @lowerBound AND @upperBound
             AND @droppedAt >= s.started_at
@@ -327,7 +325,7 @@ export class CurrentSessionRepository {
         dropped_at = @droppedAt,
         location = @location,
         utc_offset_minutes = @utcOffsetMinutes
-      WHERE id = @id AND location IS NULL
+      WHERE id = @id AND source_event_id IS NULL
     `);
     const enqueueEvent = db.prepare(`
       INSERT OR IGNORE INTO community_drop_event_outbox (
@@ -350,6 +348,14 @@ export class CurrentSessionRepository {
         @localMinute,
         @utcOffsetMinutes
       )
+      ON CONFLICT(event_id) DO UPDATE SET
+        session_id = excluded.session_id,
+        game = excluded.game,
+        scope = excluded.scope,
+        card_name = excluded.card_name,
+        location = excluded.location,
+        local_minute = excluded.local_minute,
+        utc_offset_minutes = excluded.utc_offset_minutes
     `);
     const transaction = db.transaction(
       (contextUpdates: readonly CardEventContextUpdate[]) => {

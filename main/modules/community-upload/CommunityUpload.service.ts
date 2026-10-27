@@ -37,7 +37,7 @@ interface CommunityUploadCard {
 interface CommunityDropEvent {
   event_id: string;
   card_name: string;
-  location: string;
+  location: string | null;
   local_minute: number;
   utc_offset_minutes: number;
 }
@@ -991,7 +991,7 @@ class CommunityUploadService {
       (row): row is CommunityDropEvent =>
         typeof row.event_id === "string" &&
         typeof row.card_name === "string" &&
-        typeof row.location === "string" &&
+        (row.location === null || typeof row.location === "string") &&
         typeof row.local_minute === "number" &&
         typeof row.utc_offset_minutes === "number",
     );

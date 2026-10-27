@@ -4,7 +4,7 @@
 
 BEGIN;
 
-SELECT plan(35);
+SELECT plan(41);
 
 SELECT has_index(
   'public', 'community_drop_events',
@@ -351,6 +351,48 @@ SELECT results_eq(
   ) #> '{cards,1,locations}')$$,
   ARRAY[2],
   'static context projection should publish global locations'
+);
+SELECT results_eq(
+  $$SELECT (get_community_league_drop_context_static(
+    'poe1', 'context_catalog_test'
+  ) #>> '{totals,observed_events}')::bigint$$,
+  ARRAY[11::bigint],
+  'static context should publish the exact context-observation denominator'
+);
+SELECT results_eq(
+  $$SELECT (get_community_league_drop_context_static(
+    'poe1', 'context_catalog_test'
+  ) #>> '{totals,located_events}')::bigint$$,
+  ARRAY[11::bigint],
+  'static context should publish the exact located-event denominator'
+);
+SELECT results_eq(
+  $$SELECT (get_community_league_drop_context_static(
+    'poe1', 'context_catalog_test'
+  ) #>> '{cards,1,located_events}')::bigint$$,
+  ARRAY[7::bigint],
+  'static context should publish each card location denominator before truncation'
+);
+SELECT results_eq(
+  $$SELECT (get_community_league_drop_context_static(
+    'poe1', 'context_catalog_test'
+  ) #>> '{totals,local_time_buckets,40,count}')::bigint$$,
+  ARRAY[10::bigint],
+  'static context should publish player-time bucket denominators'
+);
+SELECT results_eq(
+  $$SELECT (get_community_league_drop_context_static(
+    'poe1', 'context_catalog_test'
+  ) #>> '{totals,utc_time_buckets,36,count}')::bigint$$,
+  ARRAY[10::bigint],
+  'static context should publish UTC bucket denominators'
+);
+SELECT results_eq(
+  $$SELECT (get_community_league_drop_context_static(
+    'poe1', 'context_catalog_test'
+  ) #>> '{totals,locations,0,count}')::bigint$$,
+  ARRAY[10::bigint],
+  'static context should publish exact location denominators before card truncation'
 );
 
 SELECT * FROM finish();

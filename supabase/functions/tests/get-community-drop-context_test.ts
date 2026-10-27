@@ -239,9 +239,18 @@ quietTest(
       game: "poe1",
       league: "Allflame",
       bucket_minutes: 15,
+      totals: {
+        observed_events: 10,
+        located_events: 10,
+        local_time_buckets: [{ minute: 0, count: 10 }],
+        utc_time_buckets: [{ minute: 1380, count: 10 }],
+        locations: [{ name: "Atlas Hideout", count: 10 }],
+      },
       cards: [
         {
           name: "The Scholar",
+          observed_events: 10,
+          located_events: 10,
           local_time_buckets: [{ minute: 0, count: 10 }],
           utc_time_buckets: [{ minute: 1380, count: 10 }],
           locations: [{ name: "Atlas Hideout", count: 10 }],

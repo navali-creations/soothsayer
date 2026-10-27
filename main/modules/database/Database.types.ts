@@ -333,7 +333,7 @@ export interface CommunityDropEventOutboxTable {
   game: "poe1" | "poe2";
   scope: string;
   card_name: string;
-  location: string;
+  location: string | null;
   local_minute: number;
   utc_offset_minutes: number;
   created_at: ColumnType<string, string | undefined, never>;

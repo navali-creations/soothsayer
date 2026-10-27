@@ -148,7 +148,7 @@ interface UploadPayload {
   events?: Array<{
     event_id: string;
     card_name: string;
-    location: string;
+    location: string | null;
     local_minute: number;
     utc_offset_minutes: number;
   }>;
@@ -212,6 +212,12 @@ function lastDropEventPayload(): UploadPayload {
     .find(([functionName]) => functionName === "upload-community-drop-events");
   expect(call).toBeDefined();
   return call?.[1] as UploadPayload;
+}
+
+function edgeFunctionCallCount(functionName: string): number {
+  return mockCallEdgeFunction.mock.calls.filter(
+    ([calledFunctionName]) => calledFunctionName === functionName,
+  ).length;
 }
 
 function sortedCards(payload: UploadPayload) {
@@ -363,7 +369,13 @@ describe("community upload main-process flows", () => {
   }
 
   it("user ends a session, then app quit only drains the in-flight upload once", async () => {
-    mockCallEdgeFunction.mockResolvedValue(createEdgeResponse(1));
+    mockCallEdgeFunction.mockImplementation((functionName: string) =>
+      Promise.resolve(
+        functionName === "upload-community-drop-events"
+          ? createDropEventResponse(3, 3)
+          : createEdgeResponse(1),
+      ),
+    );
 
     await addThreeCardsAndStop();
 
@@ -373,7 +385,8 @@ describe("community upload main-process flows", () => {
     await communityUpload.drainInFlightUploads();
 
     expect(currentSession.isSessionActive("poe1")).toBe(false);
-    expect(mockCallEdgeFunction).toHaveBeenCalledTimes(1);
+    expect(edgeFunctionCallCount("v2-upload-community-data")).toBe(1);
+    expect(edgeFunctionCallCount("upload-community-drop-events")).toBe(1);
     expect(lastUploadPayload()).toMatchObject({
       league_name: LEAGUE,
       game: "poe1",
@@ -392,7 +405,13 @@ describe("community upload main-process flows", () => {
   });
 
   it("system suspend stops the session and queues locally, then resume flushes it", async () => {
-    mockCallEdgeFunction.mockResolvedValue(createEdgeResponse(1));
+    mockCallEdgeFunction.mockImplementation((functionName: string) =>
+      Promise.resolve(
+        functionName === "upload-community-drop-events"
+          ? createDropEventResponse(2, 2)
+          : createEdgeResponse(1),
+      ),
+    );
 
     await currentSession.startSession("poe1", LEAGUE);
     await currentSession.addCard("poe1", LEAGUE, "The Doctor", "drop-1");
@@ -418,7 +437,11 @@ describe("community upload main-process flows", () => {
 
     await waitForCondition(async () => {
       const rows = await getOutboxRows();
-      return mockCallEdgeFunction.mock.calls.length === 1 && rows.length === 0;
+      return (
+        edgeFunctionCallCount("v2-upload-community-data") === 1 &&
+        edgeFunctionCallCount("upload-community-drop-events") === 1 &&
+        rows.length === 0
+      );
     }, "resume did not flush the queued community upload");
 
     expect(sortedCards(lastUploadPayload())).toEqual([
@@ -428,13 +451,21 @@ describe("community upload main-process flows", () => {
   });
 
   it("offline upload stays in the outbox and startup retry sends it later", async () => {
-    mockCallEdgeFunction
-      .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce(createEdgeResponse(2));
+    let aggregateAttempts = 0;
+    mockCallEdgeFunction.mockImplementation((functionName: string) => {
+      if (functionName === "upload-community-drop-events") {
+        return Promise.resolve(createDropEventResponse(3, 3));
+      }
+      aggregateAttempts += 1;
+      return aggregateAttempts === 1
+        ? Promise.reject(new Error("offline"))
+        : Promise.resolve(createEdgeResponse(2));
+    });
 
     await addThreeCardsAndStop({ waitForCommunityUpload: true });
 
-    expect(mockCallEdgeFunction).toHaveBeenCalledTimes(1);
+    expect(edgeFunctionCallCount("v2-upload-community-data")).toBe(1);
+    expect(edgeFunctionCallCount("upload-community-drop-events")).toBe(1);
     let outboxRows = await getOutboxRows();
     expect(outboxRows).toHaveLength(1);
     expect(outboxRows[0]).toMatchObject({
@@ -454,7 +485,7 @@ describe("community upload main-process flows", () => {
 
     await communityUpload.flushPendingUploads();
 
-    expect(mockCallEdgeFunction).toHaveBeenCalledTimes(2);
+    expect(edgeFunctionCallCount("v2-upload-community-data")).toBe(2);
     expect(sortedCards(lastUploadPayload())).toEqual([
       { card_name: "Rain of Chaos", count: 1 },
       { card_name: "The Doctor", count: 2 },
@@ -521,6 +552,43 @@ describe("community upload main-process flows", () => {
       dropped_at: "2026-03-14T09:26:12.000Z",
       utc_offset_minutes: 60,
     });
+  });
+
+  it("uploads time context when the opening location is unknown", async () => {
+    mockCallEdgeFunction.mockImplementation((functionName: string) =>
+      Promise.resolve(
+        functionName === "upload-community-drop-events"
+          ? createDropEventResponse()
+          : createEdgeResponse(1),
+      ),
+    );
+    await currentSession.startSession("poe1", LEAGUE);
+    await currentSession.addCard(
+      "poe1",
+      LEAGUE,
+      "The Doctor",
+      "source-drop-without-location",
+      {
+        droppedAt: "2026-03-14T09:26:12.000Z",
+        localMinute: 626,
+        utcOffsetMinutes: 60,
+        location: null,
+      },
+    );
+
+    await currentSession.stopSession("poe1", {
+      waitForCommunityUpload: true,
+    });
+
+    expect(lastDropEventPayload().events).toEqual([
+      expect.objectContaining({
+        card_name: "The Doctor",
+        location: null,
+        local_minute: 626,
+        utc_offset_minutes: 60,
+      }),
+    ]);
+    await expect(getDropEventOutboxRows()).resolves.toEqual([]);
   });
 
   it("retains drop context after failure and deletes it after retry", async () => {

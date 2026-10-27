@@ -4,7 +4,7 @@
 
 BEGIN;
 
-SELECT plan(32);
+SELECT plan(35);
 
 SELECT has_table(
   'public', 'community_locations',
@@ -79,6 +79,14 @@ SELECT results_eq(
     WHERE oid = 'public.ingest_community_drop_events(uuid,text,jsonb)'::regprocedure$$,
   ARRAY[true],
   'ingest_community_drop_events should be SECURITY DEFINER'
+);
+SELECT results_eq(
+  $$SELECT NOT attnotnull
+    FROM pg_attribute
+    WHERE attrelid = 'public.community_drop_events'::regclass
+      AND attname = 'location_id'$$,
+  ARRAY[true],
+  'drop context should allow time observations without a location'
 );
 SELECT results_eq(
   $$SELECT COALESCE(proconfig, ARRAY[]::text[]) @> ARRAY['search_path=public, pg_temp']
@@ -164,6 +172,28 @@ SELECT results_eq(
     WHERE game = 'poe1' AND name = 'Atlas Hideout'$$,
   ARRAY[1],
   'location normalization should keep one row per game and name'
+);
+SELECT results_eq(
+  $$SELECT ingest_community_drop_events(
+    'fc000000-0000-0000-0000-000000000001',
+    'drop-context-device',
+    '[{
+      "event_id":"fc000000-0000-0000-0000-000000000309",
+      "card_name":"The Scholar",
+      "location":null,
+      "local_minute":630,
+      "utc_offset_minutes":60
+    }]'::jsonb
+  )$$,
+  ARRAY[1],
+  'ingestion should accept time context without a location'
+);
+SELECT results_eq(
+  $$SELECT location_id IS NULL, local_minute::int, utc_offset_minutes::int
+    FROM community_drop_events
+    WHERE event_id = 'fc000000-0000-0000-0000-000000000309'$$,
+  $$VALUES (true, 630, 60)$$,
+  'time-only context should preserve its minute and UTC offset'
 );
 
 SELECT throws_ok(
