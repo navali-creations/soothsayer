@@ -1,17 +1,18 @@
-import type { Table as ReactTable, Row } from "@tanstack/react-table";
+import type { Table as ReactTable, Row, RowData } from "@tanstack/react-table";
 
+import type { AppTableFeatures } from "../Table.utils";
 import { TableBodyRow } from "../TableBodyRow/TableBodyRow";
 
-interface TableBodyRowsProps<TData> {
-  table: ReactTable<TData>;
+interface TableBodyRowsProps<TData extends RowData> {
+  table: ReactTable<AppTableFeatures, TData>;
   columnsLength: number;
   hoverable: boolean;
-  rowClassName?: string | ((row: Row<TData>) => string);
-  onRowClick?: (row: Row<TData>) => void;
+  rowClassName?: string | ((row: Row<AppTableFeatures, TData>) => string);
+  onRowClick?: (row: Row<AppTableFeatures, TData>) => void;
   emptyMessage?: string;
 }
 
-export function TableBodyRows<TData>({
+export function TableBodyRows<TData extends RowData>({
   table,
   columnsLength,
   hoverable,

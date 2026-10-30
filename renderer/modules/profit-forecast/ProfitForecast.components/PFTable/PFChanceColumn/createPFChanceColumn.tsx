@@ -1,9 +1,11 @@
 import { createColumnHelper } from "@tanstack/react-table";
 
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
+
 import type { CardForecastRow } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 import PFChanceCell from "./PFChanceCell";
 
-const columnHelper = createColumnHelper<CardForecastRow>();
+const columnHelper = createColumnHelper<AppTableFeatures, CardForecastRow>();
 
 export const createPFChanceColumn = () => {
   return columnHelper.accessor("chanceInBatch", {

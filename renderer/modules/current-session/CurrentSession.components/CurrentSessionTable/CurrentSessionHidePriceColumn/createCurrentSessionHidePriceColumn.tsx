@@ -2,11 +2,12 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { FiEye } from "react-icons/fi";
 
 import { TableHeader } from "~/renderer/components";
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import type { CardEntry } from "~/types/data-stores";
 
 import CurrentSessionHidePriceCell from "./CurrentSessionHidePriceCell";
 
-const columnHelper = createColumnHelper<CardEntry>();
+const columnHelper = createColumnHelper<AppTableFeatures, CardEntry>();
 
 export const createCurrentSessionHidePriceColumn = () => {
   return columnHelper.accessor("name", {

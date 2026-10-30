@@ -1,6 +1,7 @@
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { createElement } from "react";
 
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import type { useChartColors } from "~/renderer/hooks";
 import {
   formatBytes,
@@ -15,7 +16,10 @@ import type { AppPerformanceCaptureSummaryDTO } from "../../AppPerformance.types
 import { MetricSummaryCell } from "./MetricSummaryCell/MetricSummaryCell";
 import type { MetricSummarySparklineLine } from "./MetricSummaryCell/MetricSummaryCell.utils";
 
-const columnHelper = createColumnHelper<AppPerformanceCaptureSummaryDTO>();
+const columnHelper = createColumnHelper<
+  AppTableFeatures,
+  AppPerformanceCaptureSummaryDTO
+>();
 
 export function createAppPerformanceHistoryColumns({
   deleteMode,
@@ -35,8 +39,12 @@ export function createAppPerformanceHistoryColumns({
   onToggleCaptureSelection: (captureId: string) => void;
   onToggleAllVisibleCaptureSelection: () => void;
   colors: ReturnType<typeof useChartColors>;
-}): ColumnDef<AppPerformanceCaptureSummaryDTO, unknown>[] {
-  const columns: ColumnDef<AppPerformanceCaptureSummaryDTO, unknown>[] = [];
+}): ColumnDef<AppTableFeatures, AppPerformanceCaptureSummaryDTO, unknown>[] {
+  const columns: ColumnDef<
+    AppTableFeatures,
+    AppPerformanceCaptureSummaryDTO,
+    unknown
+  >[] = [];
 
   if (deleteMode) {
     columns.push(

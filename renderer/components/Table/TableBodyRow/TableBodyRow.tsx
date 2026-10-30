@@ -1,21 +1,23 @@
+import type { RowData } from "@tanstack/react-table";
 import { flexRender, type Row } from "@tanstack/react-table";
 import clsx from "clsx";
 import type { KeyboardEvent, MouseEvent } from "react";
 
+import type { AppTableFeatures } from "../Table.utils";
 import {
   getColumnMeta,
   getColumnWidthStyle,
   isInteractiveRowTarget,
 } from "../Table.utils";
 
-interface TableBodyRowProps<TData> {
-  row: Row<TData>;
+interface TableBodyRowProps<TData extends RowData> {
+  row: Row<AppTableFeatures, TData>;
   hoverable: boolean;
-  rowClassName?: string | ((row: Row<TData>) => string);
-  onRowClick?: (row: Row<TData>) => void;
+  rowClassName?: string | ((row: Row<AppTableFeatures, TData>) => string);
+  onRowClick?: (row: Row<AppTableFeatures, TData>) => void;
 }
 
-export function TableBodyRow<TData>({
+export function TableBodyRow<TData extends RowData>({
   row,
   hoverable,
   rowClassName,

@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 
 import { Button, Table } from "~/renderer/components";
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import { useChartColors } from "~/renderer/hooks";
 import { useAppPerformanceShallow } from "~/renderer/store";
 
@@ -89,7 +90,9 @@ export function AppPerformanceHistoryTable({
   const handleNextPage = () => {
     void loadCaptureHistory(page + 1);
   };
-  const handleCaptureRowClick = (row: Row<AppPerformanceCaptureSummaryDTO>) => {
+  const handleCaptureRowClick = (
+    row: Row<AppTableFeatures, AppPerformanceCaptureSummaryDTO>,
+  ) => {
     void navigate({
       to: "/app-performance/$captureId",
       params: { captureId: row.original.id },

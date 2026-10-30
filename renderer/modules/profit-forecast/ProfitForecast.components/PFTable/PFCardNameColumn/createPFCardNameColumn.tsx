@@ -1,11 +1,12 @@
 import { createColumnHelper } from "@tanstack/react-table";
 
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import type { DivinationCardMetadata } from "~/types/data-stores";
 
 import type { CardForecastRow } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 import PFCardNameCell from "./PFCardNameCell";
 
-const columnHelper = createColumnHelper<CardForecastRow>();
+const columnHelper = createColumnHelper<AppTableFeatures, CardForecastRow>();
 
 export const createPFCardNameColumn = (
   cardMetadataMap: Map<string, DivinationCardMetadata>,

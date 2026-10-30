@@ -2,7 +2,11 @@ import type { CellContext } from "@tanstack/react-table";
 
 import type { CardEntry } from "~/types/data-stores";
 
-const CardRatioCell = (cellProps: CellContext<CardEntry, number>) => {
+import type { AppTableFeatures } from "../Table.utils";
+
+const CardRatioCell = (
+  cellProps: CellContext<AppTableFeatures, CardEntry, number>,
+) => {
   const value = cellProps.getValue();
 
   let formatted: string;

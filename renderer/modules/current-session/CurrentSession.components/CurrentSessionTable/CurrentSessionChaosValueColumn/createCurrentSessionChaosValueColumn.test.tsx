@@ -40,31 +40,31 @@ describe("createCurrentSessionChaosValueColumn", () => {
 
   it("sorts by chaos value and falls back to zero", () => {
     const col = createCurrentSessionChaosValueColumn();
-    const sortingFn = (col as any).sortingFn;
+    const sortFn = (col as any).sortFn;
 
     const rowA = { original: { price: { chaosValue: 25 } } };
     const rowB = { original: { price: undefined } };
 
-    expect(sortingFn(rowA, rowB)).toBe(25);
+    expect(sortFn(rowA, rowB)).toBe(25);
   });
 
   it("sorts by chaos value when the first row is missing a price", () => {
     const col = createCurrentSessionChaosValueColumn();
-    const sortingFn = (col as any).sortingFn;
+    const sortFn = (col as any).sortFn;
 
     const rowA = { original: { price: undefined } };
     const rowB = { original: { price: { chaosValue: 7 } } };
 
-    expect(sortingFn(rowA, rowB)).toBe(-7);
+    expect(sortFn(rowA, rowB)).toBe(-7);
   });
 
   it("sorts by chaos value when chaosValue is null", () => {
     const col = createCurrentSessionChaosValueColumn();
-    const sortingFn = (col as any).sortingFn;
+    const sortFn = (col as any).sortFn;
 
     const rowA = { original: { price: { chaosValue: null } } };
     const rowB = { original: { price: { chaosValue: 4 } } };
 
-    expect(sortingFn(rowA, rowB)).toBe(-4);
+    expect(sortFn(rowA, rowB)).toBe(-4);
   });
 });

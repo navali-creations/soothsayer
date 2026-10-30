@@ -1002,7 +1002,7 @@ describe("ComparisonTable", () => {
       const col = capturedTableProps?.columns?.find(
         (c: any) => c.id === columnId,
       );
-      return col?.columnDef?.sortingFn ?? col?.sortingFn;
+      return col?.columnDef?.sortFn ?? col?.sortFn;
     }
 
     function makeRow(original: Record<string, any>) {
@@ -1124,7 +1124,7 @@ describe("ComparisonTable", () => {
       const filterCol = capturedTableProps?.columns?.find(
         (c: any) => c.id === "filter_f1",
       );
-      const sortFn = filterCol?.columnDef?.sortingFn ?? filterCol?.sortingFn;
+      const sortFn = filterCol?.columnDef?.sortFn ?? filterCol?.sortFn;
       expect(sortFn).toBeDefined();
 
       // Card with filterRarity=1 (matches priority) should sort before filterRarity=3

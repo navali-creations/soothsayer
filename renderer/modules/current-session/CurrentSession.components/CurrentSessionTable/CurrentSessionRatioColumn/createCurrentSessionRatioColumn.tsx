@@ -1,11 +1,12 @@
 import { createColumnHelper } from "@tanstack/react-table";
 
 import { TableHeader } from "~/renderer/components";
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import type { CardEntry } from "~/types/data-stores";
 
 import CurrentSessionRadioCell from "./CurrentSessionRatioCell";
 
-const columnHelper = createColumnHelper<CardEntry>();
+const columnHelper = createColumnHelper<AppTableFeatures, CardEntry>();
 
 export const createCurrentSessionRatioColumn = () => {
   return columnHelper.accessor("count", {

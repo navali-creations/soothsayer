@@ -1,11 +1,12 @@
 import type { CellContext } from "@tanstack/react-table";
 
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import { useCurrentSession } from "~/renderer/store";
 import { formatCurrency } from "~/renderer/utils";
 import type { CardEntry } from "~/types/data-stores";
 
 const CurrentSessionTotalValueCell = (
-  cellProps: CellContext<CardEntry, number>,
+  cellProps: CellContext<AppTableFeatures, CardEntry, number>,
 ) => {
   const { getChaosToDivineRatio } = useCurrentSession();
   const chaosToDivineRatio = getChaosToDivineRatio();

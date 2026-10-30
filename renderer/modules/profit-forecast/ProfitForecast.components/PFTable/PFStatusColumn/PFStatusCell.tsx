@@ -6,6 +6,7 @@ import {
   FiEyeOff,
 } from "react-icons/fi";
 
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 
 import {
@@ -13,7 +14,9 @@ import {
   isAutoExcluded,
 } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 
-const PFStatusCell = (_cellProps: CellContext<CardForecastRow, unknown>) => {
+const PFStatusCell = (
+  _cellProps: CellContext<AppTableFeatures, CardForecastRow, unknown>,
+) => {
   const row = _cellProps.row.original;
 
   // User override on an auto-excluded card → force-included

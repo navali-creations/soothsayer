@@ -3,9 +3,10 @@ import { createColumnHelper } from "@tanstack/react-table";
 import type { CardEntry } from "~/types/data-stores";
 
 import { CardNameCell } from "../cells";
+import type { AppTableFeatures } from "../Table.utils";
 import TableHeader from "../TableHeader";
 
-const columnHelper = createColumnHelper<CardEntry>();
+const columnHelper = createColumnHelper<AppTableFeatures, CardEntry>();
 
 export const createCardNameColumn = () => {
   return columnHelper.accessor("name", {

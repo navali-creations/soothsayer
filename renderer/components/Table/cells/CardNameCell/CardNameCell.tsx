@@ -6,7 +6,11 @@ import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard"
 import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
 import type { CardEntry } from "~/types/data-stores";
 
-const CardNameCell = (cellProps: CellContext<CardEntry, string>) => {
+import type { AppTableFeatures } from "../../Table.utils";
+
+const CardNameCell = (
+  cellProps: CellContext<AppTableFeatures, CardEntry, string>,
+) => {
   const popoverId = useId();
 
   const hidePrice = cellProps.row.original.price?.hidePrice || false;

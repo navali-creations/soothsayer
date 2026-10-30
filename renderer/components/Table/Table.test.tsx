@@ -7,15 +7,16 @@ import {
 } from "~/renderer/__test-setup__/render";
 
 import Table from "./Table";
+import type { AppTableFeatures } from "./Table.utils";
 import TableHeader from "./TableHeader";
 
 // ─── Test data & columns ───────────────────────────────────────────────────
 
 type Person = { name: string; age: number };
 
-const columnHelper = createColumnHelper<Person>();
+const columnHelper = createColumnHelper<AppTableFeatures, Person>();
 
-const columns: ColumnDef<Person, any>[] = [
+const columns: ColumnDef<AppTableFeatures, Person, any>[] = [
   columnHelper.accessor("name", {
     header: "Name",
     cell: (info) => info.getValue(),
@@ -346,7 +347,7 @@ describe("Table – sorting disabled", () => {
 
   it("still renders sort icons when enableSorting is false (sorting model removed, not per-column)", () => {
     // Note: The Table component only removes getSortedRowModel when enableSorting
-    // is false — it does not pass enableSorting to useReactTable, so TanStack
+    // is false — it does not pass enableSorting to useTable, so TanStack
     // still considers columns sortable (getCanSort() returns true). The sort
     // icons render but sorting has no practical effect because there is no
     // sorted row model.
@@ -360,7 +361,7 @@ describe("Table – sorting disabled", () => {
 
   it("still applies cursor-pointer to headers when enableSorting is false (no per-column disable)", () => {
     // Same reason as above: getCanSort() still returns true because
-    // enableSorting is not forwarded to useReactTable options.
+    // enableSorting is not forwarded to useTable options.
     renderWithProviders(
       <Table data={testData} columns={columns} enableSorting={false} />,
     );
@@ -893,7 +894,7 @@ describe("Table – onRowClick", () => {
 
   it("does not call onRowClick when an interactive cell control is clicked", async () => {
     const onRowClick = vi.fn();
-    const actionColumns: ColumnDef<Person, any>[] = [
+    const actionColumns: ColumnDef<AppTableFeatures, Person, any>[] = [
       ...columns,
       columnHelper.display({
         id: "actions",
@@ -1028,7 +1029,7 @@ describe("TableHeader – without tooltip", () => {
 
 describe("Table – with TableHeader in column definitions", () => {
   it("renders TableHeader with tooltip inside table headers", () => {
-    const columnsWithHeader: ColumnDef<Person, any>[] = [
+    const columnsWithHeader: ColumnDef<AppTableFeatures, Person, any>[] = [
       columnHelper.accessor("name", {
         header: () => (
           <TableHeader tooltip="The person's full name">Name</TableHeader>
@@ -1158,7 +1159,7 @@ describe("Table – edge cases", () => {
   });
 
   it("hides sort icon when column meta has hideSortIcon set to true", () => {
-    const columnsWithHiddenSort: ColumnDef<Person, any>[] = [
+    const columnsWithHiddenSort: ColumnDef<AppTableFeatures, Person, any>[] = [
       columnHelper.accessor("name", {
         header: "Name",
         cell: (info) => info.getValue(),
@@ -1184,7 +1185,7 @@ describe("Table – edge cases", () => {
   });
 
   it("does not apply explicit width style when column uses default size (150)", () => {
-    const defaultSizeColumns: ColumnDef<Person, any>[] = [
+    const defaultSizeColumns: ColumnDef<AppTableFeatures, Person, any>[] = [
       columnHelper.accessor("name", {
         header: "Name",
         cell: (info) => info.getValue(),

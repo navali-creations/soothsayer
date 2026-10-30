@@ -1,25 +1,24 @@
+import type { RowData } from "@tanstack/react-table";
 import {
   type ColumnDef,
   type FilterFn,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
   type PaginationState,
   type Row,
   type SortingState,
-  useReactTable,
+  useTable,
 } from "@tanstack/react-table";
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 
+import type { AppTableFeatures } from "./Table.utils";
+import { appTableFeatures } from "./Table.utils";
 import { TableBodyRows } from "./TableBodyRows/TableBodyRows";
 import { TableHeaderRows } from "./TableHeaderRows/TableHeaderRows";
 import { TablePagination } from "./TablePagination/TablePagination";
 
-interface TableProps<TData> {
+interface TableProps<TData extends RowData> {
   data: TData[];
-  columns: ColumnDef<TData, any>[];
+  columns: ColumnDef<AppTableFeatures, TData, any>[];
   className?: string;
   enableSorting?: boolean;
   enablePagination?: boolean;
@@ -36,18 +35,18 @@ interface TableProps<TData> {
   /** TanStack global filter value (e.g. a debounced search string) */
   globalFilter?: string;
   /** Custom global filter function. Defaults to case-insensitive substring match on all string accessors. */
-  globalFilterFn?: FilterFn<TData>;
+  globalFilterFn?: FilterFn<AppTableFeatures, TData>;
   /** Additional class name(s) applied to each `<tr>` in the body */
-  rowClassName?: string | ((row: Row<TData>) => string);
+  rowClassName?: string | ((row: Row<AppTableFeatures, TData>) => string);
   /** Called when a non-interactive body row is clicked or keyboard-activated. */
-  onRowClick?: (row: Row<TData>) => void;
+  onRowClick?: (row: Row<AppTableFeatures, TData>) => void;
   /** Message shown when the table has no visible rows (e.g. after filtering) */
   emptyMessage?: string;
   /** When true, the table header row sticks to the top of the scroll container */
   stickyHeader?: boolean;
 }
 
-function Table<TData>({
+function Table<TData extends RowData>({
   data,
   columns,
   className,
@@ -87,21 +86,19 @@ function Table<TData>({
 
   const enableGlobalFilter = globalFilter !== undefined;
 
-  const table = useReactTable({
+  const table = useTable({
+    features: appTableFeatures,
     data,
     columns,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: enableGlobalFilter ? getFilteredRowModel() : undefined,
-    getSortedRowModel: enableSorting ? getSortedRowModel() : undefined,
-    getPaginationRowModel: enablePagination
-      ? getPaginationRowModel()
-      : undefined,
+    manualFiltering: !enableGlobalFilter,
+    manualSorting: !enableSorting,
+    manualPagination: !enablePagination,
     autoResetPageIndex: false,
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
     state: {
       sorting,
-      pagination: enablePagination ? pagination : undefined,
+      pagination,
       globalFilter: enableGlobalFilter ? globalFilter : undefined,
     },
     ...(globalFilterFn ? { globalFilterFn } : {}),

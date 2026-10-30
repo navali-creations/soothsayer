@@ -1,4 +1,4 @@
-import type { Table as ReactTable } from "@tanstack/react-table";
+import type { ReactTable, RowData } from "@tanstack/react-table";
 import clsx from "clsx";
 import {
   FiChevronLeft,
@@ -8,19 +8,20 @@ import {
 } from "react-icons/fi";
 
 import Button from "../../Button/Button";
+import type { AppTableFeatures } from "../Table.utils";
 
-interface TablePaginationProps<TData> {
-  table: ReactTable<TData>;
+interface TablePaginationProps<TData extends RowData> {
+  table: ReactTable<AppTableFeatures, TData>;
   stickyHeader: boolean;
   hasVisibleRows: boolean;
 }
 
-export function TablePagination<TData>({
+export function TablePagination<TData extends RowData>({
   table,
   stickyHeader,
   hasVisibleRows,
 }: TablePaginationProps<TData>) {
-  const pagination = table.getState().pagination;
+  const pagination = table.state.pagination;
   const firstResult = pagination.pageIndex * pagination.pageSize + 1;
   const lastResult = Math.min(
     (pagination.pageIndex + 1) * pagination.pageSize,

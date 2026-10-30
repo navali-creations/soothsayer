@@ -1,5 +1,6 @@
 import type { CellContext } from "@tanstack/react-table";
 
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useProfitForecast } from "~/renderer/store";
 
@@ -8,7 +9,9 @@ import {
   isAutoExcluded,
 } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 
-const PFExcludeCell = (cellProps: CellContext<CardForecastRow, unknown>) => {
+const PFExcludeCell = (
+  cellProps: CellContext<AppTableFeatures, CardForecastRow, unknown>,
+) => {
   const { toggleCardExclusion } = useProfitForecast();
 
   const row = cellProps.row.original;

@@ -1,14 +1,18 @@
+import type { RowData } from "@tanstack/react-table";
 import { flexRender, type Table as ReactTable } from "@tanstack/react-table";
 import clsx from "clsx";
 
+import type { AppTableFeatures } from "../Table.utils";
 import { getColumnMeta, getColumnWidthStyle } from "../Table.utils";
 import { TableSortIcon } from "../TableSortIcon/TableSortIcon";
 
-interface TableHeaderRowsProps<TData> {
-  table: ReactTable<TData>;
+interface TableHeaderRowsProps<TData extends RowData> {
+  table: ReactTable<AppTableFeatures, TData>;
 }
 
-export function TableHeaderRows<TData>({ table }: TableHeaderRowsProps<TData>) {
+export function TableHeaderRows<TData extends RowData>({
+  table,
+}: TableHeaderRowsProps<TData>) {
   return (
     <>
       {table.getHeaderGroups().map((headerGroup) => (

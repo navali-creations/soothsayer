@@ -2,6 +2,7 @@ import type { Row, SortingState } from "@tanstack/react-table";
 import { useCallback, useMemo, useState } from "react";
 
 import { Table } from "~/renderer/components";
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 import type { DivinationCardMetadata } from "~/types/data-stores";
 
@@ -115,13 +116,16 @@ const PFTable = ({ globalFilter, cardMetadataMap }: PFTableProps) => {
   const hasUserOverridden = excludedCount.userOverridden > 0;
   const showFilterBar = hasAnomalous || hasLowConfidence || hasUserOverridden;
 
-  const rowClassName = useCallback((row: Row<CardForecastRow>) => {
-    const original = row.original;
-    if (original.belowMinPrice) {
-      return "opacity-45 hover:opacity-70 hover:bg-base-content/[0.03] transition-all";
-    }
-    return "hover:bg-base-content/[0.03] transition-colors";
-  }, []);
+  const rowClassName = useCallback(
+    (row: Row<AppTableFeatures, CardForecastRow>) => {
+      const original = row.original;
+      if (original.belowMinPrice) {
+        return "opacity-45 hover:opacity-70 hover:bg-base-content/[0.03] transition-all";
+      }
+      return "hover:bg-base-content/[0.03] transition-colors";
+    },
+    [],
+  );
 
   if (rows.length === 0 && !isLoading && !showFilterBar) {
     return (

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { LeagueStorageUsage } from "~/main/modules/storage/Storage.types";
 import { Table } from "~/renderer/components";
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 
 import { formatBytes } from "../storage.utils/storage.utils";
 import { LeagueDeleteButton } from "./LeagueDeleteButton/LeagueDeleteButton";
@@ -12,12 +13,15 @@ import { LeagueDeleteButton } from "./LeagueDeleteButton/LeagueDeleteButton";
 // League table column definitions
 // ============================================================================
 
-const leagueColumnHelper = createColumnHelper<LeagueStorageUsage>();
+const leagueColumnHelper = createColumnHelper<
+  AppTableFeatures,
+  LeagueStorageUsage
+>();
 
 const createLeagueColumns = (
   deletingLeagueId: string | null,
   onDelete: (league: LeagueStorageUsage) => void,
-): ColumnDef<LeagueStorageUsage, any>[] => [
+): ColumnDef<AppTableFeatures, LeagueStorageUsage, any>[] => [
   leagueColumnHelper.accessor("leagueName", {
     header: "League",
     enableSorting: true,

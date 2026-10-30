@@ -124,10 +124,10 @@ describe("CurrentSessionChaosValueColumn", () => {
 
     it("sorts by chaosValue ascending", () => {
       const column = createCurrentSessionChaosValueColumn();
-      const sortingFn = (column as any).sortingFn;
+      const sortFn = (column as any).sortFn;
 
       expect(
-        sortingFn(
+        sortFn(
           createRow(makeCardEntry({ price: { chaosValue: 100 } })),
           createRow(makeCardEntry({ price: { chaosValue: 200 } })),
         ),
@@ -136,10 +136,10 @@ describe("CurrentSessionChaosValueColumn", () => {
 
     it("sorts equal chaos values as 0", () => {
       const column = createCurrentSessionChaosValueColumn();
-      const sortingFn = (column as any).sortingFn;
+      const sortFn = (column as any).sortFn;
 
       expect(
-        sortingFn(
+        sortFn(
           createRow(makeCardEntry({ price: { chaosValue: 100 } })),
           createRow(makeCardEntry({ price: { chaosValue: 100 } })),
         ),
@@ -148,10 +148,10 @@ describe("CurrentSessionChaosValueColumn", () => {
 
     it("handles missing price by defaulting chaosValue to 0", () => {
       const column = createCurrentSessionChaosValueColumn();
-      const sortingFn = (column as any).sortingFn;
+      const sortFn = (column as any).sortFn;
 
       expect(
-        sortingFn(
+        sortFn(
           createRow(makeCardEntry({ price: undefined })),
           createRow(makeCardEntry({ price: { chaosValue: 50 } })),
         ),
@@ -564,10 +564,10 @@ describe("CurrentSessionTotalValueColumn", () => {
 
     it("sorts by totalValue ascending", () => {
       const column = createCurrentSessionTotalValueColumn();
-      const sortingFn = (column as any).sortingFn;
+      const sortFn = (column as any).sortFn;
 
       expect(
-        sortingFn(
+        sortFn(
           createRow(makeCardEntry({ price: { totalValue: 1000 } })),
           createRow(makeCardEntry({ price: { totalValue: 5000 } })),
         ),
@@ -576,10 +576,10 @@ describe("CurrentSessionTotalValueColumn", () => {
 
     it("returns 0 for equal total values", () => {
       const column = createCurrentSessionTotalValueColumn();
-      const sortingFn = (column as any).sortingFn;
+      const sortFn = (column as any).sortFn;
 
       expect(
-        sortingFn(
+        sortFn(
           createRow(makeCardEntry({ price: { totalValue: 3000 } })),
           createRow(makeCardEntry({ price: { totalValue: 3000 } })),
         ),
@@ -588,10 +588,10 @@ describe("CurrentSessionTotalValueColumn", () => {
 
     it("defaults to 0 when price is undefined", () => {
       const column = createCurrentSessionTotalValueColumn();
-      const sortingFn = (column as any).sortingFn;
+      const sortFn = (column as any).sortFn;
 
       expect(
-        sortingFn(
+        sortFn(
           createRow(makeCardEntry({ price: undefined })),
           createRow(makeCardEntry({ price: { totalValue: 100 } })),
         ),

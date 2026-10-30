@@ -1,13 +1,16 @@
-import type { Header } from "@tanstack/react-table";
+import type { Header, RowData } from "@tanstack/react-table";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 
+import type { AppTableFeatures } from "../Table.utils";
 import { getColumnMeta } from "../Table.utils";
 
-interface TableSortIconProps<TData> {
-  header: Header<TData, unknown>;
+interface TableSortIconProps<TData extends RowData> {
+  header: Header<AppTableFeatures, TData, unknown>;
 }
 
-export function TableSortIcon<TData>({ header }: TableSortIconProps<TData>) {
+export function TableSortIcon<TData extends RowData>({
+  header,
+}: TableSortIconProps<TData>) {
   const sortedDirection = header.column.getIsSorted();
 
   if (

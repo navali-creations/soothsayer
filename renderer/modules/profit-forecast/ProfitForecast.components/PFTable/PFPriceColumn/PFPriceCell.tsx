@@ -1,9 +1,13 @@
 import type { CellContext } from "@tanstack/react-table";
 import clsx from "clsx";
 
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
+
 import type { CardForecastRow } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 
-const PFPriceCell = (cellProps: CellContext<CardForecastRow, number>) => {
+const PFPriceCell = (
+  cellProps: CellContext<AppTableFeatures, CardForecastRow, number>,
+) => {
   const row = cellProps.row.original;
 
   if (!row.hasPrice) {

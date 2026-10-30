@@ -1,12 +1,15 @@
 import type { CellContext } from "@tanstack/react-table";
 import clsx from "clsx";
 
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import { useProfitForecast } from "~/renderer/store";
 
 import type { CardForecastRow } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 import { formatPnLDivine } from "../../../ProfitForecast.utils/ProfitForecast.utils";
 
-const PFPlAllDropsCell = (cellProps: CellContext<CardForecastRow, number>) => {
+const PFPlAllDropsCell = (
+  cellProps: CellContext<AppTableFeatures, CardForecastRow, number>,
+) => {
   const { chaosToDivineRatio } = useProfitForecast();
 
   const row = cellProps.row.original;

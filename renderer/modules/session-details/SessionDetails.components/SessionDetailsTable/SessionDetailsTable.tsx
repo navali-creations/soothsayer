@@ -5,6 +5,7 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
 
 import { DivinationCard, Table } from "~/renderer/components";
 import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
 import { useSessionDetails } from "~/renderer/store";
@@ -17,7 +18,7 @@ import type { CardEntry } from "../../SessionDetails.types";
 const SessionCardNameCell = ({
   info,
 }: {
-  info: CellContext<CardEntry, string>;
+  info: CellContext<AppTableFeatures, CardEntry, string>;
 }) => {
   const popoverId = useId();
   const row = info.row.original;
@@ -69,7 +70,7 @@ const SessionCardNameCell = ({
   );
 };
 
-const columnHelper = createColumnHelper<CardEntry>();
+const columnHelper = createColumnHelper<AppTableFeatures, CardEntry>();
 
 const SessionDetailsTable = () => {
   const { getCardData, getPriceData, toggleCardPriceVisibility } =

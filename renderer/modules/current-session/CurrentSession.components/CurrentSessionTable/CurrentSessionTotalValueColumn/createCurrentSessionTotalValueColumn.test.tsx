@@ -31,19 +31,19 @@ describe("createCurrentSessionTotalValueColumn", () => {
 
   it("sorts by total value", () => {
     const col = createCurrentSessionTotalValueColumn();
-    const sortingFn = (col as any).sortingFn;
+    const sortFn = (col as any).sortFn;
     const rowA = { original: { price: { totalValue: 500 } } };
     const rowB = { original: { price: { totalValue: 300 } } };
 
-    expect(sortingFn(rowA, rowB)).toBe(200);
+    expect(sortFn(rowA, rowB)).toBe(200);
   });
 
   it("falls back missing prices to 0", () => {
     const col = createCurrentSessionTotalValueColumn();
-    const sortingFn = (col as any).sortingFn;
+    const sortFn = (col as any).sortFn;
     const rowA = { original: { price: undefined } };
     const rowB = { original: { price: { totalValue: 450 } } };
 
-    expect(sortingFn(rowA, rowB)).toBe(-450);
+    expect(sortFn(rowA, rowB)).toBe(-450);
   });
 });

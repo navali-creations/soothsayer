@@ -1,11 +1,12 @@
 import type { CellContext } from "@tanstack/react-table";
 
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useCurrentSession } from "~/renderer/store";
 import type { CardEntry } from "~/types/data-stores";
 
 const CurrentSessionHidePriceCell = (
-  cellProps: CellContext<CardEntry, string>,
+  cellProps: CellContext<AppTableFeatures, CardEntry, string>,
 ) => {
   const { toggleCardPriceVisibility, getSession } = useCurrentSession();
 

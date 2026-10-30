@@ -1,9 +1,11 @@
 import { createColumnHelper } from "@tanstack/react-table";
 
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
+
 import type { CardForecastRow } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 import PFPriceCell from "./PFPriceCell";
 
-const columnHelper = createColumnHelper<CardForecastRow>();
+const columnHelper = createColumnHelper<AppTableFeatures, CardForecastRow>();
 
 export const createPFPriceColumn = () => {
   return columnHelper.accessor("divineValue", {

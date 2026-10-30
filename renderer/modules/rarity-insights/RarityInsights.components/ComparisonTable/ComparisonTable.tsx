@@ -1,9 +1,10 @@
-import { createColumnHelper, type SortingFn } from "@tanstack/react-table";
+import { createColumnHelper, type SortFn } from "@tanstack/react-table";
 import { useDeferredValue, useMemo } from "react";
 import { FiRefreshCw } from "react-icons/fi";
 import { GiCrownedSkull } from "react-icons/gi";
 
 import { Table } from "~/renderer/components";
+import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import { useBoundStore } from "~/renderer/store";
 import type { KnownRarity } from "~/types/data-stores";
 
@@ -19,7 +20,7 @@ import RarityBadgeDropdown from "../RarityBadgeDropdown/RarityBadgeDropdown";
 import RarityChips from "../RarityChips/RarityChips";
 import RarityInsightsCardNameCell from "../RarityInsightsCardNameCell/RarityInsightsCardNameCell";
 
-const columnHelper = createColumnHelper<ComparisonRow>();
+const columnHelper = createColumnHelper<AppTableFeatures, ComparisonRow>();
 
 const PLACEHOLDER_FILTER_NAMES = ["Filter 1", "Filter 2", "Filter 3"];
 
@@ -53,7 +54,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
   );
 
   // Custom sort: matching rarity first, then ascending by rarity value.
-  const raritySortFn = useMemo<SortingFn<ComparisonRow>>(
+  const raritySortFn = useMemo<SortFn<AppTableFeatures, ComparisonRow>>(
     () => (rowA, rowB) => {
       const a = rowA.original.rarity;
       const b = rowB.original.rarity;
@@ -70,7 +71,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
   );
 
   // Custom sort for PL column: null values always sort to bottom.
-  const plRaritySortFn = useMemo<SortingFn<ComparisonRow>>(
+  const plRaritySortFn = useMemo<SortFn<AppTableFeatures, ComparisonRow>>(
     () => (rowA, rowB) => {
       const a = rowA.original.prohibitedLibraryRarity;
       const b = rowB.original.prohibitedLibraryRarity;
@@ -265,7 +266,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
           />
         ),
         size: 120,
-        sortingFn: raritySortFn,
+        sortFn: raritySortFn,
         meta: { hideSortIcon: true },
         enableGlobalFilter: false,
       }),
@@ -283,7 +284,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
           <ProhibitedLibraryRarityCell rarity={info.getValue()} />
         ),
         size: 140,
-        sortingFn: plRaritySortFn,
+        sortFn: plRaritySortFn,
         meta: { hideSortIcon: true },
         enableGlobalFilter: false,
       }),
@@ -303,7 +304,10 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
         const filterPriority = priorityFilterRarities[filterId] ?? null;
         const filterTheme = filterThemes.get(filterId) ?? null;
 
-        const filterSortFn: SortingFn<ComparisonRow> = (rowA, rowB) => {
+        const filterSortFn: SortFn<AppTableFeatures, ComparisonRow> = (
+          rowA,
+          rowB,
+        ) => {
           const a = rowA.original.filterRarities[filterId];
           const b = rowB.original.filterRarities[filterId];
 
@@ -378,7 +382,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
               );
             },
             size: 150,
-            sortingFn: filterSortFn,
+            sortFn: filterSortFn,
             meta: { hideSortIcon: true },
             enableGlobalFilter: false,
           },
