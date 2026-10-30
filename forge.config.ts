@@ -136,6 +136,43 @@ const config: ForgeConfig = {
     ignoreModules: ["better-sqlite3"],
   },
   hooks: {
+    packageAfterCopy: async (
+      _forgeConfig,
+      buildPath,
+      _electronVersion,
+      platform,
+      arch,
+    ) => {
+      const prebuildsDir = path.join(
+        buildPath,
+        "node_modules/better-sqlite3/prebuilds",
+      );
+      const prebuilds = await fs.promises.readdir(prebuildsDir);
+      const nativePlatform = platform === "mas" ? "darwin" : platform;
+      const platforms =
+        nativePlatform === "linux" ? ["linux", "linuxmusl"] : [nativePlatform];
+      const architectures = arch === "universal" ? ["x64", "arm64"] : [arch];
+      const keep = new Set(
+        platforms.flatMap((os) =>
+          architectures.map((cpu) => `${os}-${cpu}.node`),
+        ),
+      );
+      for (const cpu of architectures) {
+        if (!prebuilds.includes(`${nativePlatform}-${cpu}.node`)) {
+          throw new Error(
+            `Missing better-sqlite3 prebuild for ${platform}/${cpu}`,
+          );
+        }
+      }
+
+      // Other CPU binaries make RPM's native strip step fail. Prune only the
+      // staged package, retaining both libc variants for Linux targets.
+      await Promise.all(
+        prebuilds
+          .filter((file) => file.endsWith(".node") && !keep.has(file))
+          .map((file) => fs.promises.unlink(path.join(prebuildsDir, file))),
+      );
+    },
     generateAssets: async () => {
       // Copies the entire data/ directory from the navali package into the
       // staging area. This includes prohibited-library-weights.csv which is
