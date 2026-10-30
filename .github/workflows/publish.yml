@@ -328,7 +328,16 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ needs.check-version.outputs.version }}"
-          NOTES=$(tr -d '\r' < CHANGELOG.md | awk "BEGIN{found=0} /^## ${VERSION}$/{found=1; next} /^## /{if(found) exit} found{print}")
+          NOTES=$(awk -v version="$VERSION" '
+            { sub(/\r$/, "") }
+            $0 == "## " version { found=1; next }
+            /^## / && found { exit }
+            found { print }
+          ' CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            echo "::error::No release notes found for $VERSION in CHANGELOG.md"
+            exit 1
+          fi
           echo "notes<<EOF" >> $GITHUB_OUTPUT
           echo "$NOTES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
