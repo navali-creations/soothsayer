@@ -125,9 +125,10 @@ test.describe("Community card-drop context", () => {
       );
       await setSetting(page, "communityUploadsEnabled", true);
       await setSetting(page, "poe1ClientTxtPath", logPath);
+      // Startup completes the current backfill before this test seeds history.
       await dbExec(page, "DELETE FROM app_metadata WHERE key IN (?, ?)", [
-        "historical_card_context_backfill_v1:poe1",
-        "historical_card_context_backfill_v1:poe2",
+        "historical_card_time_context_backfill_v2:poe1",
+        "historical_card_time_context_backfill_v2:poe2",
       ]);
 
       await expect(
@@ -137,6 +138,14 @@ test.describe("Community card-drop context", () => {
           "runHistoricalContextBackfill",
         ),
       ).resolves.toEqual({ status: "completed", enrichedEvents: 1 });
+
+      await expect(
+        callElectronAPI(
+          page,
+          "clientLogReader",
+          "runHistoricalContextBackfill",
+        ),
+      ).resolves.toEqual({ status: "already-completed", enrichedEvents: 0 });
 
       await expect(
         dbQuery<{
