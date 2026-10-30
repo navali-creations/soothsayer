@@ -1,5 +1,87 @@
 # soothsayer
 
+## 1.0.0
+
+### Major Changes
+
+- [`95970f8`](https://github.com/navali-creations/soothsayer/commit/95970f8451d0ddb9d8e39282e7bdc53af86d80e6) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** Community card data can now include when and where stacked decks were opened.
+
+  Soothsayer reads available location and time details from Path of Exile's client log, including compatible past card openings, and uploads that history in the background without delaying new sessions.
+
+  - **Background progress:** the app menu shows when historical card context is still being uploaded.
+  - **Privacy:** missing context is left unreported, and community results expose aggregated time and location patterns without exact dates, timestamps, device IDs, or account identities.
+  - **Community datasets:** supported publishers can retrieve a complete league in one request, including all available 15-minute activity buckets and locations.
+
+### Minor Changes
+
+- [`eac23c8`](https://github.com/navali-creations/soothsayer/commit/eac23c872263b8db9ea1b90800938919bab0fa83) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Changed:** Card details now open directly to your personal analytics without separate data tabs.
+
+  The unused **Market Data** view and the **Your Data** tab selector have been removed, keeping your drop chance, history, and related insights immediately visible.
+
+  - **League selection:** the selector now has the same consistent width used on **Statistics**.
+
+- [`eac23c8`](https://github.com/navali-creations/soothsayer/commit/eac23c872263b8db9ea1b90800938919bab0fa83) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** Game detection is now faster and more reliable through a dedicated native watcher.
+
+  - **Windows:** Path of Exile starts and stops are detected directly, with clearer feedback when detection itself is unavailable.
+  - **Linux:** Soothsayer can now detect running Path of Exile 1 and Path of Exile 2 clients.
+  - **Kakao Games:** Korean Path of Exile clients are detected, and both `Client.txt` and `KakaoClient.txt` logs can be selected during setup or from Settings.
+  - **Session reliability:** malformed card-drop log entries are ignored instead of being counted with an invalid identifier, and setup cannot finish after its selected game paths disappear.
+
+- [`dd4215b`](https://github.com/navali-creations/soothsayer/commit/dd4215b95ac2629c615b66133ffc35d9d0654c51) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Removed:** Soothsayer no longer collects usage analytics.
+
+  Page views and feature interactions are no longer sent to an analytics service. The related setup and **Privacy & Telemetry** options have been removed, while optional crash reporting and **Community Drop Rates** controls continue to work independently.
+
+### Patch Changes
+
+- [`1451f6a`](https://github.com/navali-creations/soothsayer/commit/1451f6ad8061af0bcf35ff00b7a7419d98b00a23) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Changed:** Soothsayer's desktop runtime and release foundations are now up to date.
+
+  This maintenance update improves installation, native game detection, secure sign-in storage, and packaging reliability across supported systems, keeps local database support current, and updates the foundations used to build and verify releases. The main window also reopens at its previous size and position, while title-bar menus remain responsive when opened and closed. Existing saved placement and encrypted sign-ins remain compatible.
+
+- [`7923dd2`](https://github.com/navali-creations/soothsayer/commit/7923dd2385e7f3e590afbbf03243f3484444cdb9) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Card details now update smoothly and reliably when switching cards or leagues.
+
+  The page keeps its existing layout visible while fresh values load instead of replaying a full-page loading sequence.
+
+  - **Consistent transitions:** headers and content animate at the same pace as other pages, while statistics, the drop timeline, and matching sessions refresh in place.
+  - **League selection:** your selected league persists across related cards and falls back to **All Leagues** only when the destination card is unavailable in that league.
+  - **Rapid navigation:** results from an earlier card or league can no longer replace the card and sessions currently being viewed.
+  - **Correct game:** card previews opened from session data stay within the matching Path of Exile game.
+
+- [`1d8ed65`](https://github.com/navali-creations/soothsayer/commit/1d8ed65227bfdb75d52ee8e83bab10a642d64d0b) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** Help text is now clearer, more consistent, and easier to use throughout Soothsayer.
+
+  Tooltips now stay visible above clipped panels, align with the control they describe, and use consistent placement, colors, typography, and shadows without blocking nearby actions.
+
+  - **App controls:** opening the title-bar menu dismisses its tooltip and keeps every menu action responsive.
+  - **Sessions:** export and delete explanations now appear directly inside the **More session options** menu for easier scanning.
+  - **Interaction hints:** mouse instructions and information icons now use consistent wording and styling across the app.
+
+- [`eac23c8`](https://github.com/navali-creations/soothsayer/commit/eac23c872263b8db9ea1b90800938919bab0fa83) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Drop timelines now show the relevant league boundaries throughout your card history.
+
+  The chart includes earlier league starts when viewing all leagues, keeps selected-league labels visible at the chart edges, and compresses long gaps before the first recorded drop without leaving excessive empty space.
+
+- [`eac23c8`](https://github.com/navali-creations/soothsayer/commit/eac23c872263b8db9ea1b90800938919bab0fa83) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Community Drop Rates now use each card's reference weight when estimating its drop chance.
+
+  Card details no longer present the raw share of community observations as the estimated probability, so exceptionally rare cards are compared fairly with common cards.
+
+  - **Clearer context:** observation counts and reference weights are shown separately with explanations.
+
 ## 0.20.1
 
 ### Patch Changes
@@ -602,7 +684,6 @@
   **Crash reporting and usage analytics are now off by default.** If you'd like to help us improve Soothsayer, you can turn them on in **Settings → Privacy & Telemetry**.
 
   #### What's new
-
   - **Stronger privacy protections** — Any file paths or usernames are automatically removed from crash reports before they ever leave your computer. No personal information is sent, even with crash reporting turned on.
   - **Two separate toggles** — Choose independently whether to share crash reports and usage statistics. Find both in **Settings → Privacy & Telemetry**.
   - **Setup wizard step** — New users will see a Privacy & Telemetry step during first-time setup with clear descriptions of each option.
