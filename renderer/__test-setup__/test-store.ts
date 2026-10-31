@@ -51,6 +51,7 @@ import { createRarityInsightsSlice } from "~/renderer/modules/rarity-insights/Ra
 import { createRarityInsightsComparisonSlice } from "~/renderer/modules/rarity-insights/RarityInsightsComparison.slice/RarityInsightsComparison.slice";
 import { createSessionDetailsSlice } from "~/renderer/modules/session-details/SessionDetails.slice/SessionDetails.slice";
 import { createSessionsSlice } from "~/renderer/modules/sessions/Sessions.slice/Sessions.slice";
+import { createCommunityUploadSlice } from "~/renderer/modules/settings/CommunityUpload.slice/CommunityUpload.slice";
 import { createSettingsSlice } from "~/renderer/modules/settings/Settings.slice/Settings.slice";
 import { createStorageSlice } from "~/renderer/modules/settings/Storage.slice/Storage.slice";
 import { createSetupSlice } from "~/renderer/modules/setup/Setup.slice/Setup.slice";
@@ -121,6 +122,7 @@ export function createTestStore(overrides?: StoreOverrides) {
     devtools(
       immer((...a) => {
         const settingsSlice = createSettingsSlice(...a);
+        const communityUploadSlice = createCommunityUploadSlice(...a);
         const appPerformanceSlice = createAppPerformanceSlice(...a);
         const storageSlice = createStorageSlice(...a);
         const setupSlice = createSetupSlice(...a);
@@ -145,6 +147,7 @@ export function createTestStore(overrides?: StoreOverrides) {
 
         const baseState: BoundStore = {
           ...settingsSlice,
+          ...communityUploadSlice,
           ...appPerformanceSlice,
           ...storageSlice,
           ...setupSlice,

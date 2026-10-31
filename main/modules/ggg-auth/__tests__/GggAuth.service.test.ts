@@ -28,6 +28,7 @@ const {
   mockPathJoin,
   mockAppIsPackaged,
   mockLinkGggAccount,
+  mockUnlinkGggAccount,
 } = vi.hoisted(() => {
   class _MockIpcValidationError extends Error {
     detail: string;
@@ -67,6 +68,7 @@ const {
     mockPathJoin: vi.fn((...args: string[]) => args.join("/")),
     mockAppIsPackaged: vi.fn(() => false),
     mockLinkGggAccount: vi.fn().mockResolvedValue(undefined),
+    mockUnlinkGggAccount: vi.fn(),
   };
 });
 
@@ -128,6 +130,7 @@ vi.mock("~/main/modules/community-upload/CommunityUpload.service", () => ({
   CommunityUploadService: {
     getInstance: () => ({
       linkGggAccount: mockLinkGggAccount,
+      unlinkGggAccount: mockUnlinkGggAccount,
     }),
   },
 }));
@@ -328,6 +331,9 @@ function expectTokenRequest(
 describe("GggAuthService", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockUnlinkGggAccount.mockImplementation(async (clearSession: () => void) =>
+      clearSession(),
+    );
     vi.useRealTimers();
     restoreGggAuthEnv();
 
@@ -1038,6 +1044,96 @@ describe("GggAuthService", () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("Logout handler", () => {
+    it("keeps the local session until the server acknowledges unlinking", async () => {
+      mockStoredSession(MOCK_SESSION);
+      let acknowledge!: () => void;
+      mockUnlinkGggAccount.mockImplementationOnce(
+        async (clearSession: () => void) => {
+          await new Promise<void>((resolve) => {
+            acknowledge = resolve;
+          });
+          clearSession();
+        },
+      );
+      const service = GggAuthService.getInstance();
+      const pending = service.logout();
+      await vi.waitFor(() => expect(acknowledge).toBeTypeOf("function"));
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+      await expect(service.authenticate()).resolves.toEqual({ success: false });
+      acknowledge();
+      await pending;
+      expect(mockFsUnlinkSync).toHaveBeenCalledOnce();
+    });
+
+    it("retains sign-in and reports a safe failure when the server cannot unlink", async () => {
+      mockStoredSession(MOCK_SESSION);
+      mockUnlinkGggAccount.mockRejectedValueOnce(
+        new Error("private backend details"),
+      );
+      GggAuthService.getInstance();
+      const handler = getIpcHandler(mockIpcHandle, GggAuthChannel.Logout);
+      await expect(handler({ sender: { id: 1 } })).resolves.toEqual({
+        success: false,
+      });
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+    });
+
+    it("does not restore a sign-in when an older token refresh finishes after unlink", async () => {
+      mockStoredSession(MOCK_EXPIRED_SESSION);
+      let finishRefresh!: (response: Response) => void;
+      mockFetch.mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            finishRefresh = resolve;
+          }),
+      );
+      const service = GggAuthService.getInstance();
+      const token = service.getAccessToken();
+      await vi.waitFor(() => expect(finishRefresh).toBeTypeOf("function"));
+      await service.logout();
+      mockFsWriteFileSync.mockClear();
+      finishRefresh(createSuccessTokenResponse());
+      await expect(token).resolves.toBeNull();
+      expect(mockFsWriteFileSync).not.toHaveBeenCalled();
+    });
+
+    it("does not return a token from a decryption started before unlink", async () => {
+      mockStoredSession(MOCK_SESSION);
+      let finishDecrypt!: (result: { result: string }) => void;
+      mockSafeStorageDecrypt.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishDecrypt = resolve;
+          }),
+      );
+      const service = GggAuthService.getInstance();
+      const token = service.getAccessToken();
+      await vi.waitFor(() => expect(finishDecrypt).toBeTypeOf("function"));
+      await service.logout();
+      finishDecrypt({ result: JSON.stringify(MOCK_SESSION) });
+      await expect(token).resolves.toBeNull();
+    });
+
+    it("does not recreate sign-in when encryption of a refreshed token finishes after unlink", async () => {
+      mockStoredSession(MOCK_EXPIRED_SESSION);
+      mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+      let finishEncrypt!: (result: Buffer) => void;
+      mockSafeStorageEncrypt.mockImplementationOnce(
+        () =>
+          new Promise<Buffer>((resolve) => {
+            finishEncrypt = resolve;
+          }),
+      );
+      const service = GggAuthService.getInstance();
+      const token = service.getAccessToken();
+      await vi.waitFor(() => expect(finishEncrypt).toBeTypeOf("function"));
+      await service.logout();
+      mockFsWriteFileSync.mockClear();
+      finishEncrypt(Buffer.from("encrypted"));
+      await expect(token).resolves.toBeNull();
+      expect(mockFsWriteFileSync).not.toHaveBeenCalled();
+    });
+
     it("should delete session file when it exists", async () => {
       mockFsExistsSync.mockReturnValue(true);
 
@@ -1050,7 +1146,7 @@ describe("GggAuthService", () => {
       expect(mockFsUnlinkSync).toHaveBeenCalled();
     });
 
-    it("should succeed even when no session file exists", async () => {
+    it("clears local state after acknowledged unlink even if the session file was already removed", async () => {
       mockFsExistsSync.mockReturnValue(false);
 
       GggAuthService.getInstance();
@@ -1610,7 +1706,7 @@ describe("GggAuthService", () => {
       ).resolves.toBeNull();
     });
 
-    it("swallows encryption and deletion failures", async () => {
+    it("tolerates encryption failures but reports a failed sign-out if deletion fails", async () => {
       const service = GggAuthService.getInstance();
       mockSafeStorageEncrypt.mockImplementation(() => {
         throw new Error("encryption unavailable");
@@ -1626,7 +1722,7 @@ describe("GggAuthService", () => {
       mockFsUnlinkSync.mockImplementation(() => {
         throw new Error("permission denied");
       });
-      expect(() => service.logout()).not.toThrow();
+      await expect(service.logout()).rejects.toThrow("permission denied");
     });
 
     it("handles unexpected auth-status failures and warns without a production proxy", async () => {

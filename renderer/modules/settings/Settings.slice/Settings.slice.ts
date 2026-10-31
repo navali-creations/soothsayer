@@ -86,7 +86,7 @@ export const createSettingsSlice: StateCreator<
     mainWindowBounds: null,
     telemetryCrashReporting: false,
     csvExportPath: null,
-    communityUploadsEnabled: true,
+    communityUploadsEnabled: false,
     appPerformanceMonitorEnabled: false,
     appPerformanceAutoStartOnSession: false,
     appPerformanceRetention: "7d",

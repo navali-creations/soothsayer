@@ -20,6 +20,7 @@ const {
   mockGetKysely,
   mockGetDb,
   mockSettingsGet,
+  mockSettingsSet,
   mockGetSnapshotForSession,
   mockLoadSnapshot,
   mockStartAutoRefresh,
@@ -39,6 +40,7 @@ const {
   mockGetKysely: vi.fn(),
   mockGetDb: vi.fn(),
   mockSettingsGet: vi.fn(),
+  mockSettingsSet: vi.fn(),
   mockGetSnapshotForSession: vi.fn(),
   mockLoadSnapshot: vi.fn(),
   mockStartAutoRefresh: vi.fn(),
@@ -68,7 +70,7 @@ vi.mock("~/main/modules/database", () =>
 vi.mock("~/main/modules/settings-store", () =>
   createSettingsStoreMock({
     mockGet: mockSettingsGet,
-    mockSet: vi.fn().mockResolvedValue(undefined),
+    mockSet: mockSettingsSet,
     mockGetAllSettings: vi.fn().mockResolvedValue({}),
   }),
 );
@@ -136,8 +138,11 @@ import {
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
 import { CurrentSessionService } from "~/main/modules/current-session/CurrentSession.service";
+import { SettingsStoreRepository } from "~/main/modules/settings-store/SettingsStore.repository";
 import { EdgeFunctionError } from "~/main/modules/supabase";
 
+import { CommunityUploadChannel } from "../CommunityUpload.channels";
+import { CommunityUploadRepository } from "../CommunityUpload.repository";
 import { CommunityUploadService } from "../CommunityUpload.service";
 
 interface UploadPayload {
@@ -321,6 +326,9 @@ describe("community upload main-process flows", () => {
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     communityUpload = CommunityUploadService.getInstance();
+    await new CommunityUploadRepository(testDb.kysely).setDropContextConsent(
+      true,
+    );
     currentSession = CurrentSessionService.getInstance();
   });
 
@@ -367,6 +375,362 @@ describe("community upload main-process flows", () => {
       .selectAll()
       .execute();
   }
+
+  it.each([null, false])(
+    "sends no community requests on startup, resume, or session end without general consent (%j)",
+    async (consent) => {
+      const settings = new SettingsStoreRepository(testDb.kysely);
+      const previousGet = mockSettingsGet.getMockImplementation();
+      mockSettingsGet.mockImplementation((key: string) =>
+        key === "communityUploadsEnabled"
+          ? settings.get("communityUploadsEnabled")
+          : previousGet?.(key),
+      );
+      if (consent === false)
+        await settings.set("communityUploadsEnabled", false);
+      await testDb.kysely
+        .deleteFrom("app_metadata")
+        .where("key", "=", "community_drop_context_consent_v1")
+        .execute();
+      await addThreeCardsAndStop({ waitForCommunityUpload: true });
+      await testDb.kysely
+        .insertInto("community_upload_outbox")
+        .values({
+          game: "poe1",
+          scope: LEAGUE,
+          cards_json: JSON.stringify([{ card_name: "The Doctor", count: 2 }]),
+        })
+        .execute();
+
+      resetSingletons(CommunityUploadService);
+      communityUpload = CommunityUploadService.getInstance();
+      await communityUpload.flushPendingUploads();
+      getPowerMonitorHandler("resume")();
+      await communityUpload.flushPendingUploads();
+      await communityUpload.linkGggAccount();
+      await communityUpload.backfillIfNeeded();
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+      await expect(getOutboxRows()).resolves.toHaveLength(1);
+      await expect(getDropEventOutboxRows()).resolves.toHaveLength(3);
+      await expect(getUploadedSnapshotRows()).resolves.toEqual([]);
+
+      await settings.set("communityUploadsEnabled", true);
+      mockCallEdgeFunction.mockResolvedValue(createEdgeResponse(1));
+      await communityUpload.flushPendingUploads();
+      expect(edgeFunctionCallCount("v2-upload-community-data")).toBe(1);
+      expect(edgeFunctionCallCount("upload-community-drop-events")).toBe(0);
+      await expect(getDropEventOutboxRows()).resolves.toHaveLength(3);
+    },
+  );
+
+  it.each([null, false])(
+    "preserves a legacy contributor's count uploads without extending consent to opening context (%j)",
+    async (contextConsent) => {
+      await testDb.kysely
+        .insertInto("app_metadata")
+        .values({
+          key: `community_backfill_done_poe1_${LEAGUE}`,
+          value: "true",
+        })
+        .execute();
+      const repository = new CommunityUploadRepository(testDb.kysely);
+      if (contextConsent === null) {
+        await testDb.kysely
+          .deleteFrom("app_metadata")
+          .where("key", "=", "community_drop_context_consent_v1")
+          .execute();
+      } else {
+        await repository.setDropContextConsent(false);
+      }
+
+      let settings = new SettingsStoreRepository(testDb.kysely);
+      const previousGet = mockSettingsGet.getMockImplementation();
+      mockSettingsGet.mockImplementation((key: string) =>
+        key === "communityUploadsEnabled"
+          ? settings.get("communityUploadsEnabled")
+          : previousGet?.(key),
+      );
+      mockCallEdgeFunction.mockResolvedValue(createEdgeResponse(1));
+
+      await addThreeCardsAndStop({ waitForCommunityUpload: true });
+      expect(edgeFunctionCallCount("v2-upload-community-data")).toBe(1);
+      expect(edgeFunctionCallCount("upload-community-drop-events")).toBe(0);
+      await expect(getUploadedSnapshotRows()).resolves.toEqual([
+        { card_name: "Rain of Chaos", count: 1 },
+        { card_name: "The Doctor", count: 2 },
+      ]);
+      await expect(getDropEventOutboxRows()).resolves.toHaveLength(3);
+
+      settings = new SettingsStoreRepository(testDb.kysely);
+      resetSingletons(CommunityUploadService);
+      communityUpload = CommunityUploadService.getInstance();
+      await communityUpload.flushPendingUploads();
+      getPowerMonitorHandler("resume")();
+      await communityUpload.flushPendingUploads();
+      await expect(settings.get("communityUploadsEnabled")).resolves.toBe(true);
+      await expect(repository.getDropContextConsent()).resolves.toBe(
+        contextConsent,
+      );
+      expect(edgeFunctionCallCount("v2-upload-community-data")).toBe(1);
+      expect(edgeFunctionCallCount("upload-community-drop-events")).toBe(0);
+      await expect(getDropEventOutboxRows()).resolves.toHaveLength(3);
+
+      await repository.setDropContextConsent(true);
+      mockCallEdgeFunction.mockResolvedValue(createDropEventResponse(3, 3));
+      await communityUpload.flushPendingUploads();
+      expect(edgeFunctionCallCount("upload-community-drop-events")).toBe(1);
+      await expect(getDropEventOutboxRows()).resolves.toEqual([]);
+    },
+  );
+
+  it("finishes an in-flight verified upload before unlinking and sends subsequent counts without a GGG token", async () => {
+    mockGetAccessToken.mockResolvedValue("valid-ggg-token");
+    let finishUpload!: (result: ReturnType<typeof createEdgeResponse>) => void;
+    let countRequests = 0;
+    mockCallEdgeFunction.mockImplementation(
+      (functionName: string, payload: { action?: string }) => {
+        if (payload.action === "unlink-ggg")
+          return Promise.resolve({ success: true, updated_records: 1 });
+        if (functionName === "upload-community-drop-events")
+          return Promise.resolve(createDropEventResponse(3, 3));
+        countRequests += 1;
+        if (countRequests === 1)
+          return new Promise((resolve) => {
+            finishUpload = resolve;
+          });
+        return Promise.resolve(createEdgeResponse(2));
+      },
+    );
+    const ending = addThreeCardsAndStop({ waitForCommunityUpload: true });
+    await vi.waitFor(() => expect(finishUpload).toBeTypeOf("function"));
+    const clearSession = vi.fn(() => {
+      mockGetAccessToken.mockResolvedValue(null);
+    });
+    const unlinking = communityUpload.unlinkGggAccount(clearSession);
+    await communityUpload.linkGggAccount();
+    expect(
+      mockCallEdgeFunction.mock.calls.some(([, payload]) => payload.action),
+    ).toBe(false);
+    finishUpload(createEdgeResponse(1));
+    await unlinking;
+    await ending;
+    expect(clearSession).toHaveBeenCalledOnce();
+    await currentSession.startSession("poe1", LEAGUE);
+    await currentSession.addCard("poe1", LEAGUE, "The Doctor", "after-unlink");
+    await currentSession.stopSession("poe1", { waitForCommunityUpload: true });
+    const countCalls = mockCallEdgeFunction.mock.calls.filter(
+      ([name, payload]) =>
+        name === "v2-upload-community-data" && !payload.action,
+    );
+    expect(countCalls).toHaveLength(2);
+    expect(countCalls[0][2]).toEqual({ "X-GGG-Token": "valid-ggg-token" });
+    expect(countCalls[1][2]).toEqual({});
+  });
+
+  it("discards a token captured before unlinking even if a settings read finishes later", async () => {
+    const previousGet = mockSettingsGet.getMockImplementation();
+    let finishSettingsRead!: (enabled: boolean) => void;
+    mockGetAccessToken.mockImplementationOnce(async () => {
+      mockSettingsGet.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finishSettingsRead = resolve;
+          }),
+      );
+      return "old-ggg-token";
+    });
+    mockCallEdgeFunction.mockImplementation(
+      (name: string, payload: { action?: string }) =>
+        Promise.resolve(
+          payload.action === "unlink-ggg"
+            ? { success: true, updated_records: 1 }
+            : name === "upload-community-drop-events"
+              ? createDropEventResponse(3, 3)
+              : createEdgeResponse(1),
+        ),
+    );
+    const ending = addThreeCardsAndStop({ waitForCommunityUpload: true });
+    await vi.waitFor(() => expect(finishSettingsRead).toBeTypeOf("function"));
+    mockSettingsGet.mockImplementation(previousGet!);
+    mockGetAccessToken.mockResolvedValue("current-ggg-token");
+    await communityUpload.unlinkGggAccount(() => {
+      mockGetAccessToken.mockResolvedValue(null);
+    });
+    finishSettingsRead(true);
+    await ending;
+    expect(
+      mockCallEdgeFunction.mock.calls.some(
+        ([name, payload]) =>
+          name === "v2-upload-community-data" && !payload.action,
+      ),
+    ).toBe(false);
+    await expect(getOutboxRows()).resolves.toHaveLength(1);
+    await communityUpload.flushPendingUploads();
+    const countCall = mockCallEdgeFunction.mock.calls.find(
+      ([name, payload]) =>
+        name === "v2-upload-community-data" && !payload.action,
+    );
+    expect(countCall?.[2]).toEqual({});
+  });
+
+  it("keeps new counts queued during unlinking and resumes them without verification", async () => {
+    mockGetAccessToken.mockResolvedValue("valid-ggg-token");
+    let finishUnlink!: (result: {
+      success: boolean;
+      updated_records: number;
+    }) => void;
+    mockCallEdgeFunction.mockImplementation(
+      (name: string, payload: { action?: string }) => {
+        if (payload.action === "unlink-ggg")
+          return new Promise((resolve) => {
+            finishUnlink = resolve;
+          });
+        return Promise.resolve(
+          name === "upload-community-drop-events"
+            ? createDropEventResponse(3, 3)
+            : createEdgeResponse(1),
+        );
+      },
+    );
+    const clearSession = vi.fn(() => {
+      mockGetAccessToken.mockResolvedValue(null);
+    });
+    const unlinking = communityUpload.unlinkGggAccount(clearSession);
+    expect(communityUpload.unlinkGggAccount(clearSession)).toBe(unlinking);
+    await vi.waitFor(() => expect(finishUnlink).toBeTypeOf("function"));
+    await addThreeCardsAndStop({ waitForCommunityUpload: true });
+    await expect(getOutboxRows()).resolves.toHaveLength(1);
+    await expect(getUploadedSnapshotRows()).resolves.toEqual([]);
+    finishUnlink({ success: true, updated_records: 1 });
+    await unlinking;
+    await communityUpload.flushPendingUploads();
+    expect(clearSession).toHaveBeenCalledOnce();
+    const countCall = mockCallEdgeFunction.mock.calls.find(
+      ([name, payload]) =>
+        name === "v2-upload-community-data" && !payload.action,
+    );
+    expect(countCall?.[2]).toEqual({});
+    await expect(getOutboxRows()).resolves.toEqual([]);
+  });
+
+  it("keeps queued counts local if consent is withdrawn while an account token is read", async () => {
+    const settings = new SettingsStoreRepository(testDb.kysely);
+    await settings.set("communityUploadsEnabled", true);
+    const previousGet = mockSettingsGet.getMockImplementation();
+    mockSettingsGet.mockImplementation((key: string) =>
+      key === "communityUploadsEnabled"
+        ? settings.get("communityUploadsEnabled")
+        : previousGet?.(key),
+    );
+    mockGetAccessToken.mockImplementationOnce(async () => {
+      await settings.set("communityUploadsEnabled", false);
+      return null;
+    });
+    await addThreeCardsAndStop({ waitForCommunityUpload: true });
+    expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    await expect(getOutboxRows()).resolves.toHaveLength(1);
+    await expect(getUploadedSnapshotRows()).resolves.toEqual([]);
+  });
+
+  it("records consent when the contribution banner is confirmed and keeps time sharing separate", async () => {
+    testDb.db.exec(
+      "CREATE TABLE dismissed_banners (banner_id TEXT PRIMARY KEY)",
+    );
+    const settings = new SettingsStoreRepository(testDb.kysely);
+    const previousGet = mockSettingsGet.getMockImplementation();
+    mockSettingsGet.mockImplementation((key: string) =>
+      key === "communityUploadsEnabled"
+        ? settings.get("communityUploadsEnabled")
+        : previousGet?.(key),
+    );
+    mockSettingsSet.mockImplementation((key, value) =>
+      settings.set(key, value),
+    );
+    await testDb.kysely
+      .deleteFrom("app_metadata")
+      .where("key", "=", "community_drop_context_consent_v1")
+      .execute();
+    await addThreeCardsAndStop({ waitForCommunityUpload: true });
+    expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    await expect(communityUpload.getBackfillLeagues()).resolves.toEqual([
+      { game: "poe1", league: LEAGUE },
+    ]);
+
+    mockCallEdgeFunction.mockResolvedValue(createEdgeResponse(1));
+    const handler = mockIpcHandle.mock.calls.find(
+      ([channel]) => channel === CommunityUploadChannel.TriggerBackfill,
+    )?.[1];
+    expect(handler).toBeTypeOf("function");
+    await expect(handler({ sender: { id: 1 } })).resolves.toEqual({
+      success: true,
+    });
+    await expect(
+      new SettingsStoreRepository(testDb.kysely).get("communityUploadsEnabled"),
+    ).resolves.toBe(true);
+    expect(edgeFunctionCallCount("v2-upload-community-data")).toBe(1);
+    expect(edgeFunctionCallCount("upload-community-drop-events")).toBe(0);
+  });
+
+  it.each([null, false])(
+    "keeps context local with consent %j while uploading card counts",
+    async (consent) => {
+      const repository = new CommunityUploadRepository(testDb.kysely);
+      if (consent === false) {
+        await repository.setDropContextConsent(false);
+      } else {
+        await testDb.kysely
+          .deleteFrom("app_metadata")
+          .where("key", "=", "community_drop_context_consent_v1")
+          .execute();
+      }
+      mockCallEdgeFunction.mockResolvedValue(createEdgeResponse(1));
+
+      await addThreeCardsAndStop({ waitForCommunityUpload: true });
+      await communityUpload.flushPendingUploads();
+      expect(edgeFunctionCallCount("v2-upload-community-data")).toBe(1);
+      expect(edgeFunctionCallCount("upload-community-drop-events")).toBe(0);
+      await expect(getDropEventOutboxRows()).resolves.toHaveLength(3);
+      await expect(
+        communityUpload.getDropContextUploadStatus(),
+      ).resolves.toMatchObject({ pendingEvents: 0, isUploading: false });
+
+      await repository.setDropContextConsent(true);
+      mockCallEdgeFunction.mockResolvedValue(createDropEventResponse(3, 3));
+      await communityUpload.flushPendingUploads();
+      expect(edgeFunctionCallCount("upload-community-drop-events")).toBe(1);
+      await expect(getDropEventOutboxRows()).resolves.toEqual([]);
+    },
+  );
+
+  it("stops the next batch when consent is withdrawn during an upload", async () => {
+    const repository = new CommunityUploadRepository(testDb.kysely);
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values(
+        Array.from({ length: 501 }, (_, index) => ({
+          event_id: `aaaaaaaa-0000-4000-8000-${String(index).padStart(12, "0")}`,
+          session_id: "pending-event-session",
+          game: "poe1",
+          scope: LEAGUE,
+          card_name: "The Doctor",
+          location: "Atlas Hideout",
+          local_minute: 626,
+          utc_offset_minutes: 60,
+        })),
+      )
+      .execute();
+    mockCallEdgeFunction.mockImplementation(async () => {
+      await repository.setDropContextConsent(false);
+      return createDropEventResponse(500, 500);
+    });
+    await communityUpload.flushPendingUploads();
+    await expect(repository.getDropContextConsent()).resolves.toBe(false);
+    expect(edgeFunctionCallCount("upload-community-drop-events")).toBe(1);
+
+    await communityUpload.flushPendingUploads();
+    expect(edgeFunctionCallCount("upload-community-drop-events")).toBe(1);
+    await expect(getDropEventOutboxRows()).resolves.toHaveLength(1);
+  });
 
   it("user ends a session, then app quit only drains the in-flight upload once", async () => {
     mockCallEdgeFunction.mockImplementation((functionName: string) =>

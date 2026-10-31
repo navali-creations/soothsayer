@@ -243,12 +243,25 @@ export const createSetupSlice: StateCreator<
 
     // Complete setup
     completeSetup: async () => {
+      if (get().communityUpload.isSavingDropContextConsent) return false;
       set(({ setup }) => {
         setup.isLoading = true;
         setup.error = null;
       });
 
       try {
+        const sharing = get().communityUpload;
+        if (
+          get().settings.communityUploadsEnabled &&
+          sharing.dropContextConsentLoaded &&
+          sharing.dropContextConsent === null
+        ) {
+          const saved = await sharing.setDropContextConsent(false);
+          if (!saved)
+            throw new Error(
+              "Your sharing preference could not be saved. Please try again.",
+            );
+        }
         const result = await window.electron.appSetup.completeSetup();
 
         if (result.success) {

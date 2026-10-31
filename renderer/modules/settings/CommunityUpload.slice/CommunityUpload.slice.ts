@@ -16,6 +16,7 @@ export interface CommunityUploadSlice {
 
     // UI state
     isAuthenticating: boolean;
+    isUnlinking: boolean;
     isLoadingStatus: boolean;
     authError: string | null;
 
@@ -24,9 +25,16 @@ export interface CommunityUploadSlice {
     isBackfilling: boolean;
     backfillError: string | null;
     dropContextUploadStatus: CommunityDropContextUploadStatus;
+    dropContextConsent: boolean | null;
+    dropContextConsentLoaded: boolean;
+    isLoadingDropContextConsent: boolean;
+    isSavingDropContextConsent: boolean;
+    dropContextConsentError: string | null;
 
     // Actions
     fetchStatus: () => Promise<void>;
+    fetchDropContextConsent: () => Promise<void>;
+    setDropContextConsent: (enabled: boolean) => Promise<boolean>;
     authenticate: () => Promise<void>;
     logout: () => Promise<void>;
     checkBackfill: () => Promise<void>;
@@ -51,6 +59,7 @@ export const createCommunityUploadSlice: StateCreator<
 
     // UI state
     isAuthenticating: false,
+    isUnlinking: false,
     isLoadingStatus: false,
     authError: null,
 
@@ -58,6 +67,11 @@ export const createCommunityUploadSlice: StateCreator<
     backfillLeagues: [],
     isBackfilling: false,
     backfillError: null,
+    dropContextConsent: null,
+    dropContextConsentLoaded: false,
+    isLoadingDropContextConsent: false,
+    isSavingDropContextConsent: false,
+    dropContextConsentError: null,
     dropContextUploadStatus: {
       pendingEvents: 0,
       isUploading: false,
@@ -65,6 +79,64 @@ export const createCommunityUploadSlice: StateCreator<
     },
 
     // Actions
+    fetchDropContextConsent: async () => {
+      const state = get().communityUpload;
+      if (state.dropContextConsentLoaded || state.isLoadingDropContextConsent) {
+        return;
+      }
+      set(({ communityUpload }) => {
+        communityUpload.isLoadingDropContextConsent = true;
+        communityUpload.dropContextConsentError = null;
+      });
+      try {
+        const result =
+          await window.electron.communityUpload.getDropContextConsent();
+        if (!result.success) throw new Error("Consent could not be loaded");
+        set(({ communityUpload }) => {
+          communityUpload.dropContextConsent = result.consent;
+          communityUpload.dropContextConsentLoaded = true;
+        });
+      } catch {
+        set(({ communityUpload }) => {
+          communityUpload.dropContextConsentError =
+            "Your sharing preference could not be loaded. Please try again.";
+        });
+      } finally {
+        set(({ communityUpload }) => {
+          communityUpload.isLoadingDropContextConsent = false;
+        });
+      }
+    },
+
+    setDropContextConsent: async (enabled) => {
+      if (get().communityUpload.isSavingDropContextConsent) return false;
+      set(({ communityUpload }) => {
+        communityUpload.isSavingDropContextConsent = true;
+        communityUpload.dropContextConsentError = null;
+      });
+      try {
+        const result =
+          await window.electron.communityUpload.setDropContextConsent(enabled);
+        if (!result.success) throw new Error("Consent could not be saved");
+        set(({ communityUpload }) => {
+          communityUpload.dropContextConsent = result.consent;
+          communityUpload.dropContextConsentLoaded = true;
+        });
+        await get().communityUpload.refreshDropContextUploadStatus();
+        return true;
+      } catch {
+        set(({ communityUpload }) => {
+          communityUpload.dropContextConsentError =
+            "Your sharing preference could not be saved. Please try again.";
+        });
+        return false;
+      } finally {
+        set(({ communityUpload }) => {
+          communityUpload.isSavingDropContextConsent = false;
+        });
+      }
+    },
+
     fetchStatus: async () => {
       set(
         ({ communityUpload }) => {
@@ -166,24 +238,38 @@ export const createCommunityUploadSlice: StateCreator<
     },
 
     logout: async () => {
+      if (get().communityUpload.isUnlinking) return;
+      set(({ communityUpload }) => {
+        communityUpload.isUnlinking = true;
+        communityUpload.authError = null;
+      });
       try {
         const result = await window.electron.gggAuth.logout();
+        if (!result.success) throw new Error("Unlink was not acknowledged");
+        console.log("[CommunityUploadSlice] Logout successful");
 
-        if (result.success) {
-          console.log("[CommunityUploadSlice] Logout successful");
-
-          set(
-            ({ communityUpload }) => {
-              communityUpload.gggAuthenticated = false;
-              communityUpload.gggUsername = null;
-              communityUpload.gggAccountId = null;
-            },
-            false,
-            "communityUploadSlice/logout/success",
-          );
-        }
-      } catch (error) {
-        console.error("[CommunityUploadSlice] Logout failed:", error);
+        set(
+          ({ communityUpload }) => {
+            communityUpload.gggAuthenticated = false;
+            communityUpload.gggUsername = null;
+            communityUpload.gggAccountId = null;
+            communityUpload.authError = null;
+          },
+          false,
+          "communityUploadSlice/logout/success",
+        );
+      } catch {
+        // An expired token may have cleared local sign-in. Refresh it so the
+        // user can reconnect, while retaining a visible server-unlink error.
+        await get().communityUpload.fetchStatus();
+        set(({ communityUpload }) => {
+          communityUpload.authError =
+            "Your community data could not be unlinked. Check your connection or link your GGG account again, then retry.";
+        });
+      } finally {
+        set(({ communityUpload }) => {
+          communityUpload.isUnlinking = false;
+        });
       }
     },
 
@@ -225,6 +311,7 @@ export const createCommunityUploadSlice: StateCreator<
 
       try {
         const result = await window.electron.communityUpload.triggerBackfill();
+        await get().settings.hydrate();
         if (!result.success) {
           console.error("[CommunityUploadSlice] Backfill trigger failed.");
           set(
@@ -334,6 +421,7 @@ export const createCommunityUploadSlice: StateCreator<
         );
 
       void get().communityUpload.refreshDropContextUploadStatus();
+      void get().communityUpload.fetchDropContextConsent();
       return unsubscribe;
     },
   },

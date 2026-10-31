@@ -89,6 +89,7 @@ describe("Settings slice — initial state", () => {
     expect(s.overlayFontSize).toBe(1.0);
     expect(s.overlayToolbarFontSize).toBe(1.0);
     expect(s.telemetryCrashReporting).toBe(false);
+    expect(s.communityUploadsEnabled).toBe(false);
     expect(s.appPerformanceMonitorEnabled).toBe(false);
     expect(s.appPerformanceAutoStartOnSession).toBe(false);
     expect(s.appPerformanceRetention).toBe("7d");

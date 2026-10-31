@@ -1,10 +1,11 @@
 import { type ChangeEvent, useEffect, useState } from "react";
-import { FiAlertTriangle, FiExternalLink } from "react-icons/fi";
+import { FiExternalLink, FiInfo } from "react-icons/fi";
 
 import { SettingsKey } from "~/main/modules/settings-store/SettingsStore.keys";
 import { Button, Link } from "~/renderer/components";
 import { useCommunityUpload, useSettings } from "~/renderer/store";
 
+import DropContextConsent from "../DropContextConsent/DropContextConsent";
 import GggAccountLinkConfirmModal from "../GggAccountLinkConfirmModal/GggAccountLinkConfirmModal";
 
 const PrivacySettingsCard = () => {
@@ -16,6 +17,7 @@ const PrivacySettingsCard = () => {
     gggAuthenticated,
     gggUsername,
     isAuthenticating,
+    isUnlinking,
     authError,
     logout,
     fetchStatus,
@@ -58,10 +60,22 @@ const PrivacySettingsCard = () => {
       <section className="space-y-3">
         <p className="sr-only">Privacy and telemetry settings</p>
 
-        {/* Restart notice */}
-        <div className="alert alert-soft alert-warning text-sm py-2">
-          <FiAlertTriangle className="shrink-0 w-4 h-4" />
-          <span>Changes take effect after restarting the app.</span>
+        <div
+          role="note"
+          aria-label="Community data sharing"
+          className="alert alert-soft alert-info text-sm py-2"
+        >
+          <FiInfo className="shrink-0 w-4 h-4" />
+          <div className="space-y-1">
+            <p>
+              When you share community data, we store a random installation ID
+              with your uploads.
+            </p>
+            <p>
+              If you verify your data, we associate those uploads with your GGG
+              account.
+            </p>
+          </div>
         </div>
 
         <div className="divide-y divide-base-content/10">
@@ -74,6 +88,9 @@ const PrivacySettingsCard = () => {
                   Send anonymous error reports when something goes wrong. Only
                   your OS type, app version, and error details are included - no
                   usernames or file paths.
+                </p>
+                <p className="mt-1 text-sm text-base-content/60">
+                  Changes take effect after restarting the app.
                 </p>
               </div>
               <input
@@ -93,12 +110,9 @@ const PrivacySettingsCard = () => {
                   Community Drop Rates
                 </span>
                 <p className="mt-1 text-sm text-base-content/60">
-                  Share card names and counts, in-game area names, and the local
-                  minute and UTC offset of drops to build community statistics.
-                  Exact dates and timestamps stay on your device. Uploads work
-                  with or without a linked account. Preserved Client.txt entries
-                  may enrich earlier drops with the same area and time-of-day
-                  context.
+                  Share card names and counts to build community statistics.
+                  Opening times and in-game areas require your separate
+                  agreement below.
                 </p>
               </div>
               <input
@@ -110,6 +124,12 @@ const PrivacySettingsCard = () => {
             </label>
           </div>
 
+          {communityUploadsEnabled && (
+            <div className="py-3">
+              <DropContextConsent />
+            </div>
+          )}
+
           {/* GGG Account Link/Unlink */}
           {communityUploadsEnabled && (
             <div className="py-3">
@@ -118,7 +138,13 @@ const PrivacySettingsCard = () => {
                   <span className="text-sm text-success font-medium">
                     ✓ Verified as <strong>{gggUsername}</strong>
                   </span>
-                  <Button variant="ghost" size="xs" onClick={logout}>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={logout}
+                    disabled={isUnlinking}
+                    loading={isUnlinking}
+                  >
                     Unlink
                   </Button>
                 </div>
@@ -130,8 +156,8 @@ const PrivacySettingsCard = () => {
                         Uploading without a linked account
                       </p>
                       <p className="mt-1 text-sm text-base-content/60">
-                        Optional: link your Path of Exile account to show your
-                        community drop data as verified.
+                        Link your Path of Exile account to show your community
+                        drop data as verified.
                       </p>
                       <p className="mt-1 text-sm text-base-content/60">
                         Soothsayer can only see your account name and account
@@ -151,11 +177,14 @@ const PrivacySettingsCard = () => {
                       Link GGG Account
                     </Button>
                   </div>
-                  {authError && (
-                    <div className="alert alert-soft alert-error text-xs py-1.5">
-                      {authError}
-                    </div>
-                  )}
+                </div>
+              )}
+              {authError && (
+                <div
+                  role="alert"
+                  className="alert alert-soft alert-error text-xs py-1.5 mt-2"
+                >
+                  {authError}
                 </div>
               )}
             </div>

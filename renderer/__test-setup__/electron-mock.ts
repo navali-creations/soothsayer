@@ -27,6 +27,15 @@ export function createElectronMock() {
     },
 
     communityUpload: {
+      getDropContextConsent: vi
+        .fn()
+        .mockResolvedValue({ success: true, consent: null }),
+      setDropContextConsent: vi
+        .fn()
+        .mockImplementation(async (enabled: boolean) => ({
+          success: true,
+          consent: enabled,
+        })),
       getBackfillLeagues: vi.fn().mockResolvedValue({
         success: true,
         leagues: [],

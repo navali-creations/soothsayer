@@ -421,6 +421,7 @@ export const useBoundStore = create<BoundStore>()(
               state.communityUpload.gggUsername = null;
               state.communityUpload.gggAccountId = null;
               state.communityUpload.isAuthenticating = false;
+              state.communityUpload.isUnlinking = false;
               state.communityUpload.isLoadingStatus = false;
               state.communityUpload.authError = null;
               state.communityUpload.backfillLeagues = [];

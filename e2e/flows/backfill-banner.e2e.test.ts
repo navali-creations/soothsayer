@@ -128,8 +128,7 @@ test.describe("BackfillBanner", () => {
     }) => {
       await clearBackfillLeagues(page);
 
-      // The banner contains "wraeclast.cards" text — it should not be present
-      const banner = page.getByText("wraeclast.cards");
+      const banner = page.getByText("existing and future drop data");
       await expect(banner).not.toBeVisible({ timeout: 3_000 });
     });
 
@@ -138,6 +137,11 @@ test.describe("BackfillBanner", () => {
 
       const bannerText = page.getByText("existing and future drop data");
       await expect(bannerText).toBeVisible({ timeout: 5_000 });
+      await expect(
+        page.getByText(/^Anonymous uploads use a random installation ID/),
+      ).toContainText(
+        "If you choose to verify your data, we associate it with your GGG account",
+      );
     });
 
     test("should wait for persisted dismissals to load before rendering", async ({
@@ -256,7 +260,10 @@ test.describe("BackfillBanner", () => {
     });
 
     test("should render an opt-in checkbox", async ({ page }) => {
-      const checkbox = page.getByRole("checkbox");
+      const checkbox = page.getByRole("checkbox", {
+        name: "I agree",
+        exact: true,
+      });
       await expect(checkbox).toBeVisible({ timeout: 5_000 });
       // Should be unchecked by default
       await expect(checkbox).not.toBeChecked();
@@ -272,7 +279,10 @@ test.describe("BackfillBanner", () => {
     test("Contribute button should be enabled after checking the opt-in checkbox", async ({
       page,
     }) => {
-      const checkbox = page.getByRole("checkbox");
+      const checkbox = page.getByRole("checkbox", {
+        name: "I agree",
+        exact: true,
+      });
       await checkbox.click();
 
       const contributeBtn = page.getByRole("button", { name: "Contribute" });
@@ -316,7 +326,10 @@ test.describe("BackfillBanner", () => {
 
       await setBackfillingState(page, true);
 
-      const checkbox = page.getByRole("checkbox");
+      const checkbox = page.getByRole("checkbox", {
+        name: "I agree",
+        exact: true,
+      });
       await expect(checkbox).toBeDisabled({ timeout: 3_000 });
     });
 

@@ -73,6 +73,11 @@ function getGggRedirectUri(): string {
  */
 class GggSecureSessionStorage {
   private sessionPath: string;
+  private generation = 0;
+
+  get revision(): number {
+    return this.generation;
+  }
 
   constructor() {
     const userDataPath = app.getPath("userData");
@@ -83,11 +88,13 @@ class GggSecureSessionStorage {
    * Save session data with OS-level encryption
    */
   async save(session: GggSession): Promise<void> {
+    const revision = this.generation;
     const sessionJson = JSON.stringify(session);
 
     if (await safeStorage.isAsyncEncryptionAvailable()) {
       try {
         const encrypted = await safeStorage.encryptStringAsync(sessionJson);
+        if (revision !== this.generation) return;
         fs.writeFileSync(this.sessionPath, encrypted);
         // L1: Restrict session file to owner-only on Unix (Windows uses DPAPI)
         if (process.platform !== "win32") {
@@ -103,6 +110,7 @@ class GggSecureSessionStorage {
 
     // Fallback for development without encryption
     if (process.env.NODE_ENV === "development") {
+      if (revision !== this.generation) return;
       console.warn(
         "[GggAuth] Encryption not available - storing in plaintext (DEV ONLY)",
       );
@@ -167,12 +175,14 @@ class GggSecureSessionStorage {
    * Delete stored session
    */
   delete(): void {
+    this.generation += 1;
     if (fs.existsSync(this.sessionPath)) {
       try {
         fs.unlinkSync(this.sessionPath);
         console.log("[GggAuth] Session deleted");
       } catch (error) {
         console.error("[GggAuth] Failed to delete session:", error);
+        throw error;
       }
     }
   }
@@ -183,6 +193,7 @@ class GggSecureSessionStorage {
 class GggAuthService {
   private static _instance: GggAuthService;
   private sessionStorage: GggSecureSessionStorage;
+  private logoutJob: Promise<void> | null = null;
 
   // Pending OAuth flow state
   private pendingState: string | null = null;
@@ -279,7 +290,7 @@ class GggAuthService {
     ipcMain.handle(GggAuthChannel.Logout, async (event) => {
       try {
         assertTrustedSender(event, GggAuthChannel.Logout);
-        this.logout();
+        await this.logout();
         return { success: true };
       } catch (error) {
         console.error("[GggAuth] Logout failed:", error);
@@ -329,6 +340,7 @@ class GggAuthService {
     username?: string;
     accountId?: string;
   }> {
+    if (this.logoutJob) return Promise.resolve({ success: false });
     // Abort any in-progress flow
     this.cleanupPendingAuth("New authentication started");
 
@@ -441,6 +453,8 @@ class GggAuthService {
         code,
         this.pendingVerifier,
       );
+      if (state !== this.pendingState || !this.pendingResolve || this.logoutJob)
+        return;
 
       const session: GggSession = {
         access_token: tokenResponse.access_token,
@@ -451,6 +465,8 @@ class GggAuthService {
       };
 
       await this.sessionStorage.save(session);
+      if (state !== this.pendingState || !this.pendingResolve || this.logoutJob)
+        return;
 
       console.log(
         `[GggAuth] Authentication successful for user: ${session.username}`,
@@ -572,9 +588,10 @@ class GggAuthService {
    * Returns null if no session exists or refresh fails (caller should proceed as anonymous).
    */
   public async getAccessToken(): Promise<string | null> {
+    const revision = this.sessionStorage.revision;
     const session = await this.sessionStorage.load();
 
-    if (!session) {
+    if (!session || revision !== this.sessionStorage.revision) {
       return null;
     }
 
@@ -590,6 +607,7 @@ class GggAuthService {
 
     try {
       const refreshed = await this.refreshAccessToken(session.refresh_token);
+      if (revision !== this.sessionStorage.revision) return null;
 
       const updatedSession: GggSession = {
         ...session,
@@ -599,6 +617,7 @@ class GggAuthService {
       };
 
       await this.sessionStorage.save(updatedSession);
+      if (revision !== this.sessionStorage.revision) return null;
       console.log("[GggAuth] Token refresh successful");
 
       return updatedSession.access_token;
@@ -614,7 +633,8 @@ class GggAuthService {
       );
 
       // Delete the invalid session — don't throw, caller proceeds as anonymous
-      this.sessionStorage.delete();
+      if (revision === this.sessionStorage.revision)
+        this.sessionStorage.delete();
       return null;
     }
   }
@@ -692,12 +712,26 @@ class GggAuthService {
   // ─── Logout ──────────────────────────────────────────────────────────
 
   /**
-   * Log out by deleting the stored session and clearing in-memory state.
+   * Remove this installation's server association before clearing local sign-in.
    */
-  public logout(): void {
-    this.sessionStorage.delete();
-    this.cleanupPendingAuth("User logged out");
-    console.log("[GggAuth] Logged out");
+  public logout(): Promise<void> {
+    if (this.logoutJob) return this.logoutJob;
+    const job = this.unlinkAndLogout().finally(() => {
+      if (this.logoutJob === job) this.logoutJob = null;
+    });
+    this.logoutJob = job;
+    return job;
+  }
+
+  private async unlinkAndLogout(): Promise<void> {
+    const { CommunityUploadService } = await import(
+      "~/main/modules/community-upload/CommunityUpload.service"
+    );
+    await CommunityUploadService.getInstance().unlinkGggAccount(() => {
+      this.sessionStorage.delete();
+      this.cleanupPendingAuth("User logged out");
+      console.log("[GggAuth] Logged out");
+    });
   }
 
   // ─── Internal Helpers ────────────────────────────────────────────────

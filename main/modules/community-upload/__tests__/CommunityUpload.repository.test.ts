@@ -27,6 +27,34 @@ describe("CommunityUploadRepository", () => {
     await testDb.close();
   });
 
+  it("requires a separate choice even when community uploads were enabled", async () => {
+    await testDb.kysely
+      .updateTable("user_settings")
+      .set({ community_uploads_enabled: 1 })
+      .where("id", "=", 1)
+      .execute();
+    await expect(repository.getDropContextConsent()).resolves.toBeNull();
+  });
+
+  it("persists opt-in and withdrawal across repository instances", async () => {
+    await repository.setDropContextConsent(true);
+    const restarted = new CommunityUploadRepository(testDb.kysely);
+    await expect(restarted.getDropContextConsent()).resolves.toBe(true);
+    await restarted.setDropContextConsent(false);
+    await expect(repository.getDropContextConsent()).resolves.toBe(false);
+  });
+
+  it.each(["1", "yes", "", "null"])(
+    "does not treat invalid metadata %j as consent",
+    async (value) => {
+      await testDb.kysely
+        .insertInto("app_metadata")
+        .values({ key: "community_drop_context_consent_v1", value })
+        .execute();
+      await expect(repository.getDropContextConsent()).resolves.toBeNull();
+    },
+  );
+
   it("returns bounded, valid leagues that have not been completed", async () => {
     await testDb.kysely
       .insertInto("cards")

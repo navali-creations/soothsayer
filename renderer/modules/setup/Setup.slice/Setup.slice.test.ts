@@ -634,6 +634,61 @@ describe("goBack", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("completeSetup", () => {
+  it("keeps opening times private when setup finishes with the box unchecked", async () => {
+    store.setState((state) => {
+      state.settings.communityUploadsEnabled = true;
+      state.communityUpload.dropContextConsentLoaded = true;
+    });
+    electron.appSetup.completeSetup.mockResolvedValue({ success: true });
+    electron.appSetup.getSetupState.mockResolvedValue(
+      makeSetupState({ isComplete: true }),
+    );
+    await expect(store.getState().setup.completeSetup()).resolves.toBe(true);
+    expect(electron.communityUpload.setDropContextConsent).toHaveBeenCalledWith(
+      false,
+    );
+    expect(store.getState().communityUpload.dropContextConsent).toBe(false);
+  });
+
+  it("does not save a time-sharing decision when community sharing was never enabled", async () => {
+    store.setState((state) => {
+      state.communityUpload.dropContextConsentLoaded = true;
+    });
+    electron.appSetup.completeSetup.mockResolvedValue({ success: true });
+    electron.appSetup.getSetupState.mockResolvedValue(
+      makeSetupState({ isComplete: true }),
+    );
+    await expect(store.getState().setup.completeSetup()).resolves.toBe(true);
+    expect(
+      electron.communityUpload.setDropContextConsent,
+    ).not.toHaveBeenCalled();
+    expect(store.getState().communityUpload.dropContextConsent).toBeNull();
+  });
+
+  it("preserves an explicit opt-in when setup finishes", async () => {
+    store.setState((state) => {
+      state.communityUpload.dropContextConsentLoaded = true;
+      state.communityUpload.dropContextConsent = true;
+    });
+    electron.appSetup.completeSetup.mockResolvedValue({ success: true });
+    electron.appSetup.getSetupState.mockResolvedValue(
+      makeSetupState({ isComplete: true }),
+    );
+    await expect(store.getState().setup.completeSetup()).resolves.toBe(true);
+    expect(
+      electron.communityUpload.setDropContextConsent,
+    ).not.toHaveBeenCalled();
+    expect(store.getState().communityUpload.dropContextConsent).toBe(true);
+  });
+
+  it("waits for a pending sharing choice before completing setup", async () => {
+    store.setState((state) => {
+      state.communityUpload.isSavingDropContextConsent = true;
+    });
+    await expect(store.getState().setup.completeSetup()).resolves.toBe(false);
+    expect(electron.appSetup.completeSetup).not.toHaveBeenCalled();
+  });
+
   it("returns true on success", async () => {
     const currentState = makeSetupState({
       currentStep: 4,

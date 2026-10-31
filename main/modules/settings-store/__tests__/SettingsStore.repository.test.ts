@@ -20,6 +20,166 @@ describe("SettingsStoreRepository", () => {
     await testDb.close();
   });
 
+  describe("community upload consent", () => {
+    it("defaults to off even when the legacy database column defaults to on", async () => {
+      await testDb.kysely
+        .updateTable("user_settings")
+        .set({ community_uploads_enabled: 1 })
+        .where("id", "=", 1)
+        .execute();
+      await expect(repository.get("communityUploadsEnabled")).resolves.toBe(
+        false,
+      );
+      expect((await repository.getAll()).communityUploadsEnabled).toBe(false);
+    });
+
+    it("persists explicit opt-in and withdrawal across app restarts", async () => {
+      await repository.set("communityUploadsEnabled", true);
+      const restarted = new SettingsStoreRepository(testDb.kysely);
+      await expect(restarted.get("communityUploadsEnabled")).resolves.toBe(
+        true,
+      );
+      await restarted.set("communityUploadsEnabled", false);
+      await expect(
+        new SettingsStoreRepository(testDb.kysely).get(
+          "communityUploadsEnabled",
+        ),
+      ).resolves.toBe(false);
+    });
+
+    it.each(["poe1", "poe2"])(
+      "preserves the original card-count consent of a legacy %s contributor",
+      async (game) => {
+        await testDb.kysely
+          .insertInto("app_metadata")
+          .values({
+            key: `community_backfill_done_${game}_Settlers`,
+            value: "true",
+          })
+          .execute();
+
+        await expect(repository.get("communityUploadsEnabled")).resolves.toBe(
+          true,
+        );
+        await expect(
+          new SettingsStoreRepository(testDb.kysely).get(
+            "communityUploadsEnabled",
+          ),
+        ).resolves.toBe(true);
+
+        await repository.set("communityUploadsEnabled", false);
+        await expect(
+          new SettingsStoreRepository(testDb.kysely).get(
+            "communityUploadsEnabled",
+          ),
+        ).resolves.toBe(false);
+      },
+    );
+
+    it("preserves a legacy contributor's later opt-out", async () => {
+      await testDb.kysely
+        .insertInto("app_metadata")
+        .values({
+          key: "community_backfill_done_poe1_Settlers",
+          value: "true",
+        })
+        .execute();
+      await testDb.kysely
+        .updateTable("user_settings")
+        .set({ community_uploads_enabled: 0 })
+        .where("id", "=", 1)
+        .execute();
+
+      await expect(repository.get("communityUploadsEnabled")).resolves.toBe(
+        false,
+      );
+    });
+
+    it.each([
+      { key: "community_backfill_done_poe1_Settlers", value: "false" },
+      { key: "community_backfill_done_poe1_Settlers", value: "1" },
+      { key: "community_backfill_done_poe3_Settlers", value: "true" },
+      { key: "community_backfill_done_poe1_", value: "true" },
+      { key: "communityXbackfillXdoneXpoe1_Settlers", value: "true" },
+    ])(
+      "does not infer consent from invalid contribution metadata %j",
+      async (entry) => {
+        await testDb.kysely.insertInto("app_metadata").values(entry).execute();
+        await expect(repository.get("communityUploadsEnabled")).resolves.toBe(
+          false,
+        );
+      },
+    );
+
+    it("does not treat dismissing the old contribution banner as agreement", async () => {
+      testDb.db.exec(
+        "CREATE TABLE dismissed_banners (banner_id TEXT PRIMARY KEY)",
+      );
+      testDb.db
+        .prepare("INSERT INTO dismissed_banners (banner_id) VALUES (?)")
+        .run("community-backfill");
+
+      await expect(repository.get("communityUploadsEnabled")).resolves.toBe(
+        false,
+      );
+    });
+
+    it.each(["false", "1", "yes", "", "invalid"])(
+      "does not revive legacy consent when current consent metadata is %j",
+      async (value) => {
+        await testDb.kysely
+          .insertInto("app_metadata")
+          .values([
+            { key: "community_uploads_consent_v1", value },
+            { key: "community_backfill_done_poe1_Settlers", value: "true" },
+          ])
+          .execute();
+        await expect(repository.get("communityUploadsEnabled")).resolves.toBe(
+          false,
+        );
+      },
+    );
+
+    it("records an explicit choice in multi-setting updates", async () => {
+      await repository.setMultiple({
+        communityUploadsEnabled: true,
+        audioEnabled: false,
+      });
+      await expect(
+        new SettingsStoreRepository(testDb.kysely).get(
+          "communityUploadsEnabled",
+        ),
+      ).resolves.toBe(true);
+      await repository.setMultiple({ communityUploadsEnabled: false });
+      await expect(repository.get("communityUploadsEnabled")).resolves.toBe(
+        false,
+      );
+    });
+
+    it("rolls back the preference if consent cannot be saved", async () => {
+      await testDb.kysely
+        .updateTable("user_settings")
+        .set({ community_uploads_enabled: 0 })
+        .where("id", "=", 1)
+        .execute();
+      testDb.db.exec(`CREATE TRIGGER reject_community_consent BEFORE INSERT ON app_metadata
+        WHEN NEW.key = 'community_uploads_consent_v1'
+        BEGIN SELECT RAISE(ABORT, 'consent storage unavailable'); END;`);
+      await expect(
+        repository.set("communityUploadsEnabled", true),
+      ).rejects.toThrow("consent storage unavailable");
+      const stored = await testDb.kysely
+        .selectFrom("user_settings")
+        .select("community_uploads_enabled")
+        .where("id", "=", 1)
+        .executeTakeFirstOrThrow();
+      expect(stored.community_uploads_enabled).toBe(0);
+      await expect(repository.get("communityUploadsEnabled")).resolves.toBe(
+        false,
+      );
+    });
+  });
+
   // ─── getAll ────────────────────────────────────────────────────────────
 
   describe("getAll", () => {
@@ -45,6 +205,7 @@ describe("SettingsStoreRepository", () => {
       expect(settings.audioRarity1Path).toBeNull();
       expect(settings.audioRarity2Path).toBeNull();
       expect(settings.audioRarity3Path).toBeNull();
+      expect(settings.communityUploadsEnabled).toBe(false);
     });
 
     it("should return boolean types for boolean fields", async () => {

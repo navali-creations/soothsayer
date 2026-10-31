@@ -96,6 +96,19 @@ function setupAuthorizedMocks() {
   return fetchMock;
 }
 
+function accountActionRequest(
+  body: Record<string, unknown>,
+  token = "valid-ggg-token",
+): Request {
+  return createMockRequest(FUNCTION_URL, {
+    method: "POST",
+    body,
+    bearerToken: createTestJwt({ sub: "test-user-id-001" }),
+    apikey: "test-anon-key",
+    headers: { "x-ggg-token": token },
+  });
+}
+
 /**
  * Registers all the mocks needed for a successful upload flow beyond auth.
  * This includes league lookup, card upsert, card fetch, and the atomic upload
@@ -996,6 +1009,215 @@ quietTest(
     fetchMock.restore();
   },
 );
+
+quietTest(
+  "v2-upload-community-data — unlink clears only the matching installation and preserves statistics",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    try {
+      const rows: Array<{
+        id: string;
+        device_id: string;
+        ggg_uuid: string | null;
+        ggg_username: string | null;
+        is_verified: boolean;
+        total_cards_uploaded: number;
+      }> = [
+        {
+          id: "league-1",
+          device_id: VALID_DEVICE_ID,
+          ggg_uuid: "ggg-uuid-123",
+          ggg_username: "TestExile",
+          is_verified: true,
+          total_cards_uploaded: 42,
+        },
+        {
+          id: "league-2",
+          device_id: VALID_DEVICE_ID,
+          ggg_uuid: "ggg-uuid-123",
+          ggg_username: "TestExile",
+          is_verified: true,
+          total_cards_uploaded: 17,
+        },
+        {
+          id: "other-device",
+          device_id: "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee",
+          ggg_uuid: "ggg-uuid-123",
+          ggg_username: "TestExile",
+          is_verified: true,
+          total_cards_uploaded: 99,
+        },
+      ];
+      fetchMock.onUrlContaining("api.pathofexile.com/profile", () =>
+        postgrestResponse({ uuid: "ggg-uuid-123", name: "TestExile" }),
+      );
+      fetchMock.onUrlContaining("community_uploads", (input, init) => {
+        const url = new URL(String(input));
+        assertEquals(
+          url.searchParams.get("device_id"),
+          `eq.${VALID_DEVICE_ID}`,
+        );
+        if (init?.method === "PATCH") {
+          assertEquals(url.searchParams.get("ggg_uuid"), "eq.ggg-uuid-123");
+          const patch = JSON.parse(String(init.body));
+          assertEquals(patch, {
+            ggg_uuid: null,
+            ggg_username: null,
+            is_verified: false,
+          });
+          const matched = rows.filter(
+            (row) =>
+              row.device_id === VALID_DEVICE_ID &&
+              row.ggg_uuid === "ggg-uuid-123",
+          );
+          for (const row of matched) Object.assign(row, patch);
+          return postgrestResponse(matched.map(({ id }) => ({ id })));
+        }
+        assertEquals(url.searchParams.get("ggg_uuid"), "neq.ggg-uuid-123");
+        assertEquals(url.searchParams.get("limit"), "1");
+        return postgrestResponse([]);
+      });
+      const request = () =>
+        accountActionRequest({
+          action: "unlink-ggg",
+          device_id: VALID_DEVICE_ID,
+        });
+      const response = await handler(request());
+      assertEquals(response.status, 200);
+      assertEquals(await responseBody(response), {
+        success: true,
+        updated_records: 2,
+      });
+      assertEquals(
+        rows
+          .slice(0, 2)
+          .map(
+            ({
+              ggg_uuid,
+              ggg_username,
+              is_verified,
+              total_cards_uploaded,
+            }) => ({
+              ggg_uuid,
+              ggg_username,
+              is_verified,
+              total_cards_uploaded,
+            }),
+          ),
+        [
+          {
+            ggg_uuid: null,
+            ggg_username: null,
+            is_verified: false,
+            total_cards_uploaded: 42,
+          },
+          {
+            ggg_uuid: null,
+            ggg_username: null,
+            is_verified: false,
+            total_cards_uploaded: 17,
+          },
+        ],
+      );
+      assertEquals(rows[2].ggg_uuid, "ggg-uuid-123");
+      assertEquals(rows[2].is_verified, true);
+      const repeated = await handler(request());
+      assertEquals(repeated.status, 200);
+      assertEquals(await responseBody(repeated), {
+        success: true,
+        updated_records: 0,
+      });
+    } finally {
+      fetchMock.restore();
+    }
+  },
+);
+
+for (const invalid of [
+  { body: { action: "unlink-ggg", device_id: "not-a-device" }, token: "token" },
+  { body: { action: "unlink-ggg", device_id: VALID_DEVICE_ID }, token: "" },
+  { body: { action: "unlink-ggg" }, token: "token" },
+]) {
+  quietTest(
+    `v2-upload-community-data — rejects invalid unlink ${JSON.stringify(invalid.body)} with token length ${invalid.token.length}`,
+    async () => {
+      const fetchMock = setupAuthorizedMocks();
+      try {
+        const response = await handler(
+          accountActionRequest(invalid.body, invalid.token),
+        );
+        assertEquals(response.status, 400);
+        assert(
+          !fetchMock.calls.some(({ url }) => url.includes("community_uploads")),
+        );
+      } finally {
+        fetchMock.restore();
+      }
+    },
+  );
+}
+
+for (const failure of [
+  "profile",
+  "ownership",
+  "ownership-read",
+  "ownership-shape",
+  "update",
+  "update-shape",
+]) {
+  quietTest(
+    `v2-upload-community-data — unlink fails closed on ${failure} failure`,
+    async () => {
+      const fetchMock = setupAuthorizedMocks();
+      try {
+        fetchMock.onUrlContaining("api.pathofexile.com/profile", () =>
+          failure === "profile"
+            ? new Response("{}", { status: 401 })
+            : postgrestResponse({ uuid: "ggg-uuid-123", name: "TestExile" }),
+        );
+        fetchMock.onUrlContaining("community_uploads", (_input, init) => {
+          if (
+            failure === "ownership-shape" ||
+            (failure === "update-shape" && init?.method === "PATCH")
+          ) {
+            return postgrestResponse({
+              unexpected: "private database details",
+            });
+          }
+          if (init?.method === "PATCH" || failure === "ownership-read") {
+            return postgrestResponse(
+              { message: "private database details" },
+              500,
+            );
+          }
+          return postgrestResponse(
+            failure === "ownership" ? [{ id: "someone-elses-data" }] : [],
+          );
+        });
+        const response = await handler(
+          accountActionRequest({
+            action: "unlink-ggg",
+            device_id: VALID_DEVICE_ID,
+          }),
+        );
+        assertEquals(
+          response.status,
+          failure === "profile" ? 502 : failure === "ownership" ? 403 : 500,
+        );
+        assert(!(await response.text()).includes("private database details"));
+        const updates = fetchMock.calls.filter(
+          ({ init }) => init?.method === "PATCH",
+        );
+        assertEquals(
+          updates.length,
+          failure === "update" || failure === "update-shape" ? 1 : 0,
+        );
+      } finally {
+        fetchMock.restore();
+      }
+    },
+  );
+}
 
 // Test 21: Returns 502 when GGG API returns error
 quietTest(

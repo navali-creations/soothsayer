@@ -29,6 +29,12 @@ export function createStoreMock() {
     ...useBoundStore().banners,
   });
   const createCommunityUploadMock = () => ({
+    dropContextConsent: null,
+    dropContextConsentLoaded: true,
+    isSavingDropContextConsent: false,
+    dropContextConsentError: null,
+    fetchDropContextConsent: vi.fn(),
+    setDropContextConsent: vi.fn(),
     backfillLeagues: [],
     isBackfilling: false,
     backfillError: null,

@@ -33,7 +33,7 @@ vi.mock("~/renderer/components", async (importOriginal) => {
 });
 
 vi.mock("react-icons/fi", () => ({
-  FiAlertTriangle: () => <span data-testid="icon-alert-triangle" />,
+  FiInfo: () => <span data-testid="icon-info" />,
   FiExternalLink: () => <span data-testid="icon-external-link" />,
   FiShield: () => <span data-testid="icon-shield" />,
   FiX: () => <span data-testid="icon-x" />,
@@ -54,6 +54,7 @@ function setupStore(
     gggAuthenticated?: boolean;
     gggUsername?: string | null;
     isAuthenticating?: boolean;
+    isUnlinking?: boolean;
     authError?: string | null;
   } = {},
 ) {
@@ -67,6 +68,7 @@ function setupStore(
     gggAuthenticated: overrides.gggAuthenticated ?? false,
     gggUsername: overrides.gggUsername ?? null,
     isAuthenticating: overrides.isAuthenticating ?? false,
+    isUnlinking: overrides.isUnlinking ?? false,
     authError: overrides.authError ?? null,
     authenticate: mockAuthenticate,
     logout: mockLogout,
@@ -81,6 +83,28 @@ function setupStore(
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("PrivacySettingsCard", () => {
+  it("disables Unlink while waiting for the server", () => {
+    setupStore({
+      gggAuthenticated: true,
+      gggUsername: "TestUser",
+      isUnlinking: true,
+    });
+    renderWithProviders(<PrivacySettingsCard />);
+    expect(screen.getByRole("button", { name: "Unlink" })).toBeDisabled();
+  });
+
+  it("shows unlink failures while the account remains linked", () => {
+    setupStore({
+      gggAuthenticated: true,
+      gggUsername: "TestUser",
+      authError: "Community data could not be unlinked",
+    });
+    renderWithProviders(<PrivacySettingsCard />);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Community data could not be unlinked",
+    );
+    expect(screen.getByRole("button", { name: "Unlink" })).toBeEnabled();
+  });
   beforeAll(() => {
     HTMLDialogElement.prototype.showModal = vi.fn(function (
       this: HTMLDialogElement,
@@ -215,7 +239,7 @@ describe("PrivacySettingsCard", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("TestUser")).toBeInTheDocument();
     expect(screen.getByText("Unlink")).toBeInTheDocument();
-    expect(screen.queryByText("Auth failed")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Auth failed");
     expect(
       screen.queryByRole("button", { name: /Link GGG Account/i }),
     ).not.toBeInTheDocument();
@@ -235,7 +259,7 @@ describe("PrivacySettingsCard", () => {
       screen.getByText(
         /link your Path of Exile account to show your community drop data as verified/i,
       ),
-    ).toBeInTheDocument();
+    ).toHaveTextContent(/^Link your Path of Exile account/);
     expect(
       screen.getByText(
         /Soothsayer can only see your account name and account ID/i,
@@ -245,6 +269,11 @@ describe("PrivacySettingsCard", () => {
       screen.getByText(/No character, stash, item, trade, password, or email/i),
     ).toBeInTheDocument();
     expect(screen.getByTestId("icon-external-link")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "If you choose to verify your data, we associate it with your GGG account.",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("opens a confirmation modal before starting GGG account linking", async () => {
@@ -301,21 +330,36 @@ describe("PrivacySettingsCard", () => {
   it("discloses location and coarse local-time community data", () => {
     renderWithProviders(<PrivacySettingsCard />);
 
-    expect(screen.getByText(/in-game area names/)).toBeInTheDocument();
-    expect(screen.getByText(/local minute and UTC offset/)).toBeInTheDocument();
+    expect(screen.getByText(/in-game area where/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/local minute of day, UTC offset/),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(/Exact dates and timestamps stay on your device/),
     ).toBeInTheDocument();
   });
 
-  // ── Restart warning ────────────────────────────────────────────────────
+  // ── Privacy notices ────────────────────────────────────────────────────
 
-  it("shows restart warning alert", () => {
+  it("explains community identifiers in an info alert and scopes the restart note to crash reporting", () => {
     renderWithProviders(<PrivacySettingsCard />);
-
+    const info = screen.getByRole("note", { name: "Community data sharing" });
+    expect(info).toHaveTextContent(
+      "we store a random installation ID with your uploads",
+    );
+    expect(info).toHaveTextContent(
+      "If you verify your data, we associate those uploads with your GGG account",
+    );
     expect(
-      screen.getByText("Changes take effect after restarting the app."),
-    ).toBeInTheDocument();
+      screen.getByText(
+        "If you verify your data, we associate those uploads with your GGG account.",
+      ).tagName,
+    ).toBe("P");
+    const restart = screen.getByText(
+      "Changes take effect after restarting the app.",
+    );
+    expect(restart.tagName).toBe("P");
+    expect(restart.closest("label")).toHaveTextContent("Crash Reporting");
   });
 
   // ── Privacy Policy link ────────────────────────────────────────────────

@@ -7,12 +7,35 @@ import type { CommunityBackfillLeague } from "./CommunityUpload.dto";
 
 const MAX_BACKFILL_LEAGUES = 200;
 const MAX_LEAGUE_LENGTH = 256;
+// Version the disclosure so an older upload preference never grants new consent.
+const DROP_CONTEXT_CONSENT_KEY = "community_drop_context_consent_v1";
 
 const backfillKey = ({ game, league }: CommunityBackfillLeague): string =>
   `community_backfill_done_${game}_${league}`;
 
 export class CommunityUploadRepository {
   constructor(private kysely: Kysely<Database>) {}
+
+  async getDropContextConsent(): Promise<boolean | null> {
+    const row = await this.kysely
+      .selectFrom("app_metadata")
+      .select("value")
+      .where("key", "=", DROP_CONTEXT_CONSENT_KEY)
+      .executeTakeFirst();
+
+    if (row?.value === "true") return true;
+    if (row?.value === "false") return false;
+    return null;
+  }
+
+  async setDropContextConsent(enabled: boolean): Promise<void> {
+    const value = enabled ? "true" : "false";
+    await this.kysely
+      .insertInto("app_metadata")
+      .values({ key: DROP_CONTEXT_CONSENT_KEY, value })
+      .onConflict((conflict) => conflict.column("key").doUpdateSet({ value }))
+      .execute();
+  }
 
   async getBackfillLeagues(): Promise<CommunityBackfillLeague[]> {
     const rows = await this.kysely

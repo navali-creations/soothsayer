@@ -8,6 +8,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import BackfillBanner from "~/renderer/modules/app-menu/AppMenu.component/BackfillBanner/BackfillBanner";
+import DropContextConsentBanner from "~/renderer/modules/app-menu/AppMenu.component/DropContextConsentBanner/DropContextConsentBanner";
 import DropContextUploadStatus from "~/renderer/modules/app-menu/AppMenu.component/DropContextUploadStatus/DropContextUploadStatus";
 import { BeaconHost } from "~/renderer/modules/onboarding";
 import {
@@ -115,6 +116,7 @@ const RootLayout = () => {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <AppMenu />
+      {!isSetupMode && <DropContextConsentBanner />}
       {!isSetupMode && <BackfillBanner />}
       {!isSetupMode && <DropContextUploadStatus />}
       <div className="flex flex-1 overflow-hidden">

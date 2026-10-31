@@ -157,7 +157,7 @@ describe("BackfillBanner", () => {
     expect(link).toHaveAttribute("to", "/privacy-policy");
   });
 
-  it("mentions existing and future drop data without claiming anonymity", () => {
+  it("explains anonymous uploads and optional GGG verification", () => {
     setupStore({
       communityUpload: {
         backfillLeagues: [{ game: "poe1", league: "Settlers" }],
@@ -170,8 +170,10 @@ describe("BackfillBanner", () => {
       screen.getByText(/Contribute your existing and future drop data/),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText(/Anonymously contribute/),
-    ).not.toBeInTheDocument();
+      screen.getByText(/^Anonymous uploads use a random installation ID/),
+    ).toHaveTextContent(
+      "If you choose to verify your data, we associate it with your GGG account",
+    );
   });
 
   // ── Checkbox opt-in ──────────────────────────────────────────────────

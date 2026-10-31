@@ -23,7 +23,15 @@ function setupMock(overrides: { hydrate?: ReturnType<typeof vi.fn> } = {}) {
 
   mockUseBoundStore.mockImplementation((selector?: any) => {
     const state = {
-      settings: { hydrate: hydrateMock },
+      settings: { hydrate: hydrateMock, communityUploadsEnabled: true },
+      communityUpload: {
+        dropContextConsent: null,
+        dropContextConsentLoaded: true,
+        isSavingDropContextConsent: false,
+        dropContextConsentError: null,
+        fetchDropContextConsent: vi.fn(),
+        setDropContextConsent: vi.fn(),
+      },
     } as any;
     return selector ? selector(state) : state;
   });
@@ -102,7 +110,7 @@ describe("SetupTelemetryStep", () => {
 
       expect(
         screen.getByText(
-          /Both are enabled by default\. You can opt out of either at any time/,
+          /Community card uploads are off until you choose to contribute/,
         ),
       ).toBeInTheDocument();
     });
@@ -133,7 +141,7 @@ describe("SetupTelemetryStep", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          /A linked Path of Exile account can associate uploads/,
+          /Uploads are anonymous unless you choose to verify your data/,
         ),
       ).toBeInTheDocument();
     });
@@ -141,9 +149,9 @@ describe("SetupTelemetryStep", () => {
     it("discloses drop location and coarse local-time sharing", () => {
       renderWithProviders(<SetupTelemetryStep />);
 
-      expect(screen.getByText(/in-game area names/)).toBeInTheDocument();
+      expect(screen.getByText(/in-game area where/)).toBeInTheDocument();
       expect(
-        screen.getByText(/local minute and UTC offset/),
+        screen.getByText(/local minute of day, UTC offset/),
       ).toBeInTheDocument();
       expect(
         screen.getByText(/Exact dates and timestamps stay on your device/),
@@ -153,21 +161,30 @@ describe("SetupTelemetryStep", () => {
     it("shows a link to wraeclast.cards", () => {
       renderWithProviders(<SetupTelemetryStep />);
 
-      const link = screen.getByRole("link", { name: /wraeclast\.cards/i });
+      const link = screen.getByRole("link", {
+        name: "wraeclast.cards",
+        exact: true,
+      });
       expect(link).toBeInTheDocument();
     });
 
     it("has the correct wraeclast.cards URL", () => {
       renderWithProviders(<SetupTelemetryStep />);
 
-      const link = screen.getByRole("link", { name: /wraeclast\.cards/i });
+      const link = screen.getByRole("link", {
+        name: "wraeclast.cards",
+        exact: true,
+      });
       expect(link).toHaveAttribute("href", "https://wraeclast.cards");
     });
 
     it("opens wraeclast.cards in a new tab", () => {
       renderWithProviders(<SetupTelemetryStep />);
 
-      const link = screen.getByRole("link", { name: /wraeclast\.cards/i });
+      const link = screen.getByRole("link", {
+        name: "wraeclast.cards",
+        exact: true,
+      });
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", "noopener noreferrer");
     });

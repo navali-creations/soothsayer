@@ -5,6 +5,8 @@ import type { Database } from "~/main/modules/database";
 import type { SetupStep, UserSettingsDTO } from "./SettingsStore.dto";
 import { boolToInt, toDBKey, toUserSettingsDTO } from "./SettingsStore.mapper";
 
+const COMMUNITY_UPLOADS_CONSENT_KEY = "community_uploads_consent_v1";
+
 /**
  * Repository for user settings
  * Handles all database operations for the user_settings table
@@ -29,6 +31,30 @@ export class SettingsStoreRepository {
       .executeTakeFirstOrThrow();
 
     const dto = toUserSettingsDTO(row);
+    // The legacy column defaulted to 1. Only a completed contribution records
+    // the old explicit agreement to share card names and counts.
+    const consent = await this.kysely
+      .selectFrom("app_metadata")
+      .select("value")
+      .where("key", "=", COMMUNITY_UPLOADS_CONSENT_KEY)
+      .executeTakeFirst();
+    const priorContribution =
+      row.community_uploads_enabled === 1 && consent === undefined
+        ? await this.kysely
+            .selectFrom("app_metadata")
+            .select("key")
+            .where(
+              sql<boolean>`"key" GLOB ${"community_backfill_done_poe[12]_?*"}`,
+            )
+            .where("value", "=", "true")
+            .limit(1)
+            .executeTakeFirst()
+        : undefined;
+    dto.communityUploadsEnabled =
+      row.community_uploads_enabled === 1 &&
+      (consent !== undefined
+        ? consent.value === "true"
+        : priorContribution !== undefined);
     this._cache = dto;
     return dto;
   }
@@ -61,6 +87,10 @@ export class SettingsStoreRepository {
     key: K,
     value: UserSettingsDTO[K],
   ): Promise<void> {
+    if (key === "communityUploadsEnabled") {
+      await this.setMultiple({ communityUploadsEnabled: value as boolean });
+      return;
+    }
     const dbKey = toDBKey(key);
     let dbValue: any;
 
@@ -104,11 +134,28 @@ export class SettingsStoreRepository {
 
     dbSettings.updated_at = sql`datetime('now')`;
 
-    await this.kysely
-      .updateTable("user_settings")
-      .set(dbSettings as any)
-      .where("id", "=", 1)
-      .execute();
+    const writeSettings = async (database: Kysely<Database>) => {
+      await database
+        .updateTable("user_settings")
+        .set(dbSettings as any)
+        .where("id", "=", 1)
+        .execute();
+      if (typeof settings.communityUploadsEnabled === "boolean") {
+        const value = settings.communityUploadsEnabled ? "true" : "false";
+        await database
+          .insertInto("app_metadata")
+          .values({ key: COMMUNITY_UPLOADS_CONSENT_KEY, value })
+          .onConflict((conflict) =>
+            conflict.column("key").doUpdateSet({ value }),
+          )
+          .execute();
+      }
+    };
+    if (typeof settings.communityUploadsEnabled === "boolean") {
+      await this.kysely.transaction().execute(writeSettings);
+    } else {
+      await writeSettings(this.kysely);
+    }
 
     this.invalidateCache();
   }

@@ -10,6 +10,7 @@ import {
 
 const mockDismissBanner = vi.fn();
 const mockMarkDismissed = vi.fn();
+const mockHydrateSettings = vi.fn();
 
 // ─── Store factory ─────────────────────────────────────────────────────────
 //
@@ -23,6 +24,7 @@ function createTestStore() {
         dismiss: typeof mockDismissBanner;
         markDismissed: typeof mockMarkDismissed;
       };
+      settings: { hydrate: typeof mockHydrateSettings };
     }
   >()(
     devtools(
@@ -32,6 +34,7 @@ function createTestStore() {
           dismiss: mockDismissBanner,
           markDismissed: mockMarkDismissed,
         },
+        settings: { hydrate: mockHydrateSettings },
       })),
     ),
   );
@@ -54,6 +57,10 @@ function installGggAuthMock() {
   const mockGetBackfillLeagues = vi.fn();
   const mockTriggerBackfill = vi.fn();
   const mockGetDropContextUploadStatus = vi.fn();
+  const mockGetDropContextConsent = vi
+    .fn()
+    .mockResolvedValue({ success: true, consent: null });
+  const mockSetDropContextConsent = vi.fn();
   const mockOnDropContextUploadStatusChanged = vi.fn().mockReturnValue(vi.fn());
 
   // The setup file assigns `window.electron` in its own beforeEach which
@@ -66,6 +73,8 @@ function installGggAuthMock() {
       logout: mockLogout,
     },
     communityUpload: {
+      getDropContextConsent: mockGetDropContextConsent,
+      setDropContextConsent: mockSetDropContextConsent,
       getBackfillLeagues: mockGetBackfillLeagues,
       getDropContextUploadStatus: mockGetDropContextUploadStatus,
       triggerBackfill: mockTriggerBackfill,
@@ -80,6 +89,8 @@ function installGggAuthMock() {
     mockGetBackfillLeagues,
     mockTriggerBackfill,
     mockGetDropContextUploadStatus,
+    mockGetDropContextConsent,
+    mockSetDropContextConsent,
     mockOnDropContextUploadStatusChanged,
   };
 }
@@ -94,6 +105,8 @@ describe("CommunityUploadSlice", () => {
   let mockGetBackfillLeagues: ReturnType<typeof vi.fn>;
   let mockTriggerBackfill: ReturnType<typeof vi.fn>;
   let mockGetDropContextUploadStatus: ReturnType<typeof vi.fn>;
+  let mockGetDropContextConsent: ReturnType<typeof vi.fn>;
+  let mockSetDropContextConsent: ReturnType<typeof vi.fn>;
   let mockOnDropContextUploadStatusChanged: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -106,12 +119,118 @@ describe("CommunityUploadSlice", () => {
     mockGetBackfillLeagues = mocks.mockGetBackfillLeagues;
     mockTriggerBackfill = mocks.mockTriggerBackfill;
     mockGetDropContextUploadStatus = mocks.mockGetDropContextUploadStatus;
+    mockGetDropContextConsent = mocks.mockGetDropContextConsent;
+    mockSetDropContextConsent = mocks.mockSetDropContextConsent;
     mockOnDropContextUploadStatusChanged =
       mocks.mockOnDropContextUploadStatusChanged;
     store = createTestStore();
   });
 
   // ── Helper: put the store into an "authenticated" state ────────────
+
+  describe("opening-time consent", () => {
+    it.each([null, false, true])(
+      "loads explicit choice %j",
+      async (consent) => {
+        mockGetDropContextConsent.mockResolvedValue({ success: true, consent });
+        await store.getState().communityUpload.fetchDropContextConsent();
+        expect(store.getState().communityUpload).toMatchObject({
+          dropContextConsent: consent,
+          dropContextConsentLoaded: true,
+          isLoadingDropContextConsent: false,
+        });
+      },
+    );
+
+    it("allows retry after a load failure", async () => {
+      mockGetDropContextConsent.mockRejectedValueOnce(new Error("offline"));
+      await store.getState().communityUpload.fetchDropContextConsent();
+      expect(store.getState().communityUpload.dropContextConsentLoaded).toBe(
+        false,
+      );
+      expect(store.getState().communityUpload.dropContextConsent).toBeNull();
+      expect(
+        store.getState().communityUpload.dropContextConsentError,
+      ).toContain("could not be loaded");
+      await store.getState().communityUpload.fetchDropContextConsent();
+      expect(store.getState().communityUpload.dropContextConsentLoaded).toBe(
+        true,
+      );
+    });
+
+    it.each([true, false])("saves explicit choice %j", async (enabled) => {
+      mockSetDropContextConsent.mockResolvedValue({
+        success: true,
+        consent: enabled,
+      });
+      mockGetDropContextUploadStatus.mockResolvedValue({
+        success: true,
+        status: { pendingEvents: 0, isUploading: false, revision: 1 },
+      });
+      await expect(
+        store.getState().communityUpload.setDropContextConsent(enabled),
+      ).resolves.toBe(true);
+      expect(mockSetDropContextConsent).toHaveBeenCalledWith(enabled);
+      expect(store.getState().communityUpload.dropContextConsent).toBe(enabled);
+      expect(store.getState().communityUpload.isSavingDropContextConsent).toBe(
+        false,
+      );
+    });
+
+    it("keeps sharing off and shows an error when saving fails", async () => {
+      mockSetDropContextConsent.mockResolvedValue({
+        success: false,
+        error: "storage failed",
+      });
+      await expect(
+        store.getState().communityUpload.setDropContextConsent(true),
+      ).resolves.toBe(false);
+      expect(store.getState().communityUpload.dropContextConsent).toBeNull();
+      expect(
+        store.getState().communityUpload.dropContextConsentError,
+      ).toContain("could not be saved");
+    });
+
+    it("retains the saved choice if withdrawing consent fails", async () => {
+      store.setState((state) => {
+        state.communityUpload.dropContextConsent = true;
+      });
+      mockSetDropContextConsent.mockRejectedValue(new Error("storage failed"));
+      await expect(
+        store.getState().communityUpload.setDropContextConsent(false),
+      ).resolves.toBe(false);
+      expect(store.getState().communityUpload.dropContextConsent).toBe(true);
+      expect(store.getState().communityUpload.isSavingDropContextConsent).toBe(
+        false,
+      );
+    });
+
+    it("prevents overlapping consent writes", async () => {
+      let finish!: (result: { success: true; consent: boolean }) => void;
+      mockSetDropContextConsent.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      mockGetDropContextUploadStatus.mockResolvedValue({
+        success: true,
+        status: { pendingEvents: 0, isUploading: false, revision: 1 },
+      });
+      const pending = store
+        .getState()
+        .communityUpload.setDropContextConsent(true);
+      expect(store.getState().communityUpload.isSavingDropContextConsent).toBe(
+        true,
+      );
+      await expect(
+        store.getState().communityUpload.setDropContextConsent(false),
+      ).resolves.toBe(false);
+      expect(mockSetDropContextConsent).toHaveBeenCalledTimes(1);
+      finish({ success: true, consent: true });
+      await pending;
+      expect(store.getState().communityUpload.dropContextConsent).toBe(true);
+    });
+  });
 
   async function authenticateStore() {
     mockAuthenticate.mockResolvedValue({
@@ -486,6 +605,41 @@ describe("CommunityUploadSlice", () => {
   // ── logout ─────────────────────────────────────────────────────────
 
   describe("logout", () => {
+    it("keeps account details while unlinking and prevents duplicate requests", async () => {
+      await authenticateStore();
+      let acknowledge!: (result: { success: boolean }) => void;
+      mockLogout.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            acknowledge = resolve;
+          }),
+      );
+      const pending = store.getState().communityUpload.logout();
+      expect(store.getState().communityUpload.isUnlinking).toBe(true);
+      expect(store.getState().communityUpload.gggAuthenticated).toBe(true);
+      await store.getState().communityUpload.logout();
+      expect(mockLogout).toHaveBeenCalledOnce();
+      acknowledge({ success: true });
+      await pending;
+      expect(store.getState().communityUpload.isUnlinking).toBe(false);
+      expect(store.getState().communityUpload.gggAuthenticated).toBe(false);
+    });
+
+    it("shows a safe error and allows reconnection when sign-in has expired", async () => {
+      await authenticateStore();
+      mockLogout.mockResolvedValue({ success: false });
+      mockGetAuthStatus.mockResolvedValue({
+        authenticated: false,
+        username: null,
+        accountId: null,
+      });
+      await store.getState().communityUpload.logout();
+      expect(store.getState().communityUpload.gggAuthenticated).toBe(false);
+      expect(store.getState().communityUpload.authError).toContain(
+        "could not be unlinked",
+      );
+      expect(store.getState().communityUpload.isUnlinking).toBe(false);
+    });
     it("should reset auth state on successful logout", async () => {
       // First, put the store into an authenticated state
       await authenticateStore();

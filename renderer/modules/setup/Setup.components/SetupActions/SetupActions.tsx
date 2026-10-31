@@ -1,7 +1,10 @@
 import { SETUP_STEPS } from "~/main/modules/app-setup/AppSetup.types";
-import { useSetup } from "~/renderer/store";
+import { useCommunityUploadShallow, useSetup } from "~/renderer/store";
 
 const SetupActions = () => {
+  const isSavingConsent = useCommunityUploadShallow(
+    (s) => s.isSavingDropContextConsent,
+  );
   const {
     setupState,
     validation,
@@ -15,7 +18,7 @@ const SetupActions = () => {
   const isFirstStep = currentStep === SETUP_STEPS.SELECT_GAME;
   const isLastStep = currentStep === SETUP_STEPS.TELEMETRY_CONSENT;
   const isNextDisabled =
-    isLoading || (validation != null && !validation.isValid);
+    isLoading || isSavingConsent || (validation != null && !validation.isValid);
 
   const handleBack = async () => {
     await goBack();

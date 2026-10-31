@@ -4,11 +4,20 @@ import { CommunityUploadChannel } from "./CommunityUpload.channels";
 import type {
   CommunityBackfillLeaguesResult,
   CommunityBackfillResult,
+  CommunityDropContextConsentResult,
   CommunityDropContextUploadStatus,
   CommunityDropContextUploadStatusResult,
 } from "./CommunityUpload.dto";
 
 export const CommunityUploadAPI = {
+  getDropContextConsent: (): Promise<CommunityDropContextConsentResult> =>
+    ipcRenderer.invoke(CommunityUploadChannel.GetDropContextConsent),
+
+  setDropContextConsent: (
+    enabled: boolean,
+  ): Promise<CommunityDropContextConsentResult> =>
+    ipcRenderer.invoke(CommunityUploadChannel.SetDropContextConsent, enabled),
+
   getBackfillLeagues: (): Promise<CommunityBackfillLeaguesResult> =>
     ipcRenderer.invoke(CommunityUploadChannel.GetBackfillLeagues),
 

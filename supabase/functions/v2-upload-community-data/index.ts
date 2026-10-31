@@ -263,12 +263,13 @@ function validateBody(
 const TAG = "[v2-upload-community-data]";
 
 // ---------------------------------------------------------------------------
-// link-ggg: retroactively link a GGG account to existing upload records
+// Link/unlink GGG verification for one installation's existing upload records.
 // ---------------------------------------------------------------------------
 
-async function handleLinkGgg(
+async function handleGggAccountAction(
   body: Record<string, unknown>,
   gggAccessToken: string | null,
+  action: "link-ggg" | "unlink-ggg",
 ): Promise<Response> {
   const deviceId = body.device_id;
   const isPackaged = body.is_packaged !== false;
@@ -282,8 +283,7 @@ async function handleLinkGgg(
     return responseJson({
       status: 400,
       body: {
-        error:
-          "link-ggg requires: device_id (UUID), X-GGG-Token header (string)",
+        error: `${action} requires: device_id (UUID), X-GGG-Token header (string)`,
       },
     });
   }
@@ -303,7 +303,7 @@ async function handleLinkGgg(
 
     if (!gggResp.ok) {
       console.warn(
-        `${TAG} link-ggg: GGG profile request returned ${gggResp.status}`,
+        `${TAG} ${action}: GGG profile request returned ${gggResp.status}`,
       );
       return responseJson({
         status: 502,
@@ -321,8 +321,8 @@ async function handleLinkGgg(
 
     gggUuid = profile.uuid;
     gggUsername = isPackaged ? profile.name : `${profile.name} (internal)`;
-  } catch (err) {
-    console.error(`${TAG} link-ggg: GGG profile fetch error:`, err);
+  } catch {
+    console.error(`${TAG} ${action}: GGG profile request failed`);
     return responseJson({
       status: 502,
       body: { error: "GGG profile request failed" },
@@ -336,35 +336,62 @@ async function handleLinkGgg(
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 
-  const { data: updatedRows, error: updateErr } = await supabase
-    .from("community_uploads")
-    .update({
-      ggg_uuid: gggUuid,
-      ggg_username: gggUsername,
-      is_verified: true,
-    })
-    .eq("device_id", deviceId)
-    .select("id");
+  if (action === "unlink-ggg") {
+    const { data: otherAccounts, error } = await supabase
+      .from("community_uploads")
+      .select("id")
+      .eq("device_id", deviceId)
+      .neq("ggg_uuid", gggUuid)
+      .limit(1);
+    if (error || !Array.isArray(otherAccounts)) {
+      return responseJson({
+        status: 500,
+        body: { error: "Failed to verify upload ownership" },
+      });
+    }
+    if (otherAccounts?.length) {
+      return responseJson({
+        status: 403,
+        body: {
+          error: "Upload account does not match the verified GGG account",
+        },
+      });
+    }
+  }
 
-  if (updateErr) {
-    console.error(`${TAG} link-ggg: update failed:`, updateErr);
+  let update = supabase
+    .from("community_uploads")
+    .update(
+      action === "unlink-ggg"
+        ? { ggg_uuid: null, ggg_username: null, is_verified: false }
+        : { ggg_uuid: gggUuid, ggg_username: gggUsername, is_verified: true },
+    )
+    .eq("device_id", deviceId);
+
+  // A device ID is an identifier, not proof of ownership. Only the verified
+  // GGG account may remove its association, and only on this installation.
+  if (action === "unlink-ggg") update = update.eq("ggg_uuid", gggUuid);
+
+  const { data: updatedRows, error: updateErr } = await update.select("id");
+
+  if (updateErr || !Array.isArray(updatedRows)) {
+    console.error(`${TAG} ${action}: update failed`);
     return responseJson({
       status: 500,
       body: { error: "Failed to update upload records" },
     });
   }
 
-  const count = updatedRows?.length ?? 0;
-  console.log(
-    `${TAG} link-ggg: linked GGG account "${gggUsername}" (${gggUuid}) to ${count} upload record(s) for device ${deviceId}`,
-  );
+  const count = updatedRows.length;
+  console.log(`${TAG} ${action}: updated ${count} upload record(s)`);
 
   return responseJson({
     status: 200,
     body: {
       success: true,
-      ggg_username: gggUsername,
-      ggg_uuid: gggUuid,
+      ...(action === "link-ggg"
+        ? { ggg_username: gggUsername, ggg_uuid: gggUuid }
+        : {}),
       updated_records: count,
     },
   });
@@ -407,13 +434,12 @@ Deno.serve(async (req: Request) => {
       ? gggAccessTokenHeader
       : null;
 
-  // ─── Handle link-ggg action (early return) ─────────────────────────────
-  if (
-    rawBody &&
-    typeof rawBody === "object" &&
-    (rawBody as Record<string, unknown>).action === "link-ggg"
-  ) {
-    return handleLinkGgg(rawBody as Record<string, unknown>, gggAccessToken);
+  // ─── Handle account actions before validating a card upload ────────────
+  if (rawBody && typeof rawBody === "object" && !Array.isArray(rawBody)) {
+    const body = rawBody as Record<string, unknown>;
+    if (body.action === "link-ggg" || body.action === "unlink-ggg") {
+      return handleGggAccountAction(body, gggAccessToken, body.action);
+    }
   }
 
   const validation = validateBody(rawBody);

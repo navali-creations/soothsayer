@@ -14,6 +14,7 @@ import {
   SupabaseClientService,
 } from "~/main/modules/supabase";
 import {
+  assertBoolean,
   assertTrustedSender,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
@@ -24,6 +25,7 @@ import type {
   CommunityBackfillLeague,
   CommunityBackfillLeaguesResult,
   CommunityBackfillResult,
+  CommunityDropContextConsentResult,
   CommunityDropContextUploadStatus,
   CommunityDropContextUploadStatusResult,
 } from "./CommunityUpload.dto";
@@ -105,6 +107,9 @@ class CommunityUploadService {
   private eventRateWindowStartedAt = 0;
   private eventRequestsInWindow = 0;
   private dropContextUploadStatusRevision = 0;
+  private gggUnlinkJob: Promise<void> | null = null;
+  private gggAccountRevision = 0;
+  private accountRequests = new Set<Promise<unknown>>();
 
   static getInstance(): CommunityUploadService {
     if (!CommunityUploadService._instance) {
@@ -126,6 +131,42 @@ class CommunityUploadService {
   // ─── IPC Handlers ──────────────────────────────────────────────────────
 
   private setupHandlers(): void {
+    ipcMain.handle(
+      CommunityUploadChannel.GetDropContextConsent,
+      async (event) => {
+        const channel = CommunityUploadChannel.GetDropContextConsent;
+        try {
+          assertTrustedSender(event, channel);
+          return {
+            success: true,
+            consent: await this.repository.getDropContextConsent(),
+          } satisfies CommunityDropContextConsentResult;
+        } catch (error) {
+          return toSafeIpcFailure(error, channel);
+        }
+      },
+    );
+
+    ipcMain.handle(
+      CommunityUploadChannel.SetDropContextConsent,
+      async (event, enabled: boolean) => {
+        const channel = CommunityUploadChannel.SetDropContextConsent;
+        try {
+          assertTrustedSender(event, channel);
+          assertBoolean(enabled, "enabled", channel);
+          await this.repository.setDropContextConsent(enabled);
+          await this.emitDropContextUploadStatus();
+          if (enabled) void this.flushPendingUploads();
+          return {
+            success: true,
+            consent: enabled,
+          } satisfies CommunityDropContextConsentResult;
+        } catch (error) {
+          return toSafeIpcFailure(error, channel);
+        }
+      },
+    );
+
     ipcMain.handle(CommunityUploadChannel.GetBackfillLeagues, async (event) => {
       try {
         assertTrustedSender(event, CommunityUploadChannel.GetBackfillLeagues);
@@ -144,6 +185,8 @@ class CommunityUploadService {
     ipcMain.handle(CommunityUploadChannel.TriggerBackfill, async (event) => {
       try {
         assertTrustedSender(event, CommunityUploadChannel.TriggerBackfill);
+        // This handler is invoked only after the contribution banner's opt-in.
+        await this.settingsStore.set(SettingsKey.CommunityUploadsEnabled, true);
         return await this.backfillIfNeeded();
       } catch (error) {
         return toSafeIpcFailure(error, CommunityUploadChannel.TriggerBackfill);
@@ -194,9 +237,6 @@ class CommunityUploadService {
    * Get the list of leagues that have local data but haven't been backfilled yet.
    */
   public async getBackfillLeagues(): Promise<CommunityBackfillLeague[]> {
-    const enabled = await this.isEnabled();
-    if (!enabled) return [];
-
     if (!this.supabase.isConfigured()) return [];
 
     return this.repository.getBackfillLeagues();
@@ -213,7 +253,9 @@ class CommunityUploadService {
    * Called after successful GGG OAuth. Fire-and-forget — errors are logged, never thrown.
    */
   public async linkGggAccount(): Promise<void> {
+    const accountRevision = this.gggAccountRevision;
     try {
+      if (this.gggUnlinkJob) return;
       if (!this.supabase.isConfigured()) {
         console.log(
           "[CommunityUpload] Supabase not configured, skipping GGG link",
@@ -245,20 +287,24 @@ class CommunityUploadService {
         );
         return;
       }
+      if (this.gggUnlinkJob || accountRevision !== this.gggAccountRevision)
+        return;
 
-      const result = await this.supabase.callEdgeFunction<{
-        success: boolean;
-        ggg_username: string;
-        ggg_uuid: string;
-        updated_records: number;
-      }>(
-        "v2-upload-community-data",
-        {
-          action: "link-ggg",
-          device_id: deviceId,
-          is_packaged: app.isPackaged,
-        },
-        { "X-GGG-Token": gggAccessToken },
+      const result = await this.trackAccountRequest(
+        this.supabase.callEdgeFunction<{
+          success: boolean;
+          ggg_username: string;
+          ggg_uuid: string;
+          updated_records: number;
+        }>(
+          "v2-upload-community-data",
+          {
+            action: "link-ggg",
+            device_id: deviceId,
+            is_packaged: app.isPackaged,
+          },
+          { "X-GGG-Token": gggAccessToken },
+        ),
       );
 
       console.log(
@@ -276,19 +322,68 @@ class CommunityUploadService {
     }
   }
 
+  /** Keep uploads paused until both the server and local sign-in are unlinked. */
+  public unlinkGggAccount(clearLocalSession: () => void): Promise<void> {
+    if (this.gggUnlinkJob) return this.gggUnlinkJob;
+    this.gggAccountRevision += 1;
+    const job = this.unlinkGggAccountInternal(clearLocalSession).finally(() => {
+      if (this.gggUnlinkJob === job) this.gggUnlinkJob = null;
+    });
+    this.gggUnlinkJob = job;
+    return job;
+  }
+
+  private async unlinkGggAccountInternal(
+    clearLocalSession: () => void,
+  ): Promise<void> {
+    // Requests that already carry a GGG token must finish before we clear the
+    // server association. New requests stop at the guards below and stay queued.
+    await Promise.allSettled([...this.accountRequests]);
+    if (!this.supabase.isConfigured()) {
+      throw new Error("Community services are unavailable");
+    }
+    const accessToken = await GggAuthService.getInstance().getAccessToken();
+    if (!accessToken) throw new Error("GGG sign-in is required to unlink data");
+    const result = await this.supabase.callEdgeFunction<{
+      success: boolean;
+      updated_records: number;
+    }>(
+      "v2-upload-community-data",
+      {
+        action: "unlink-ggg",
+        device_id: await this.getDeviceId(),
+      },
+      { "X-GGG-Token": accessToken },
+    );
+    if (
+      result?.success !== true ||
+      !Number.isInteger(result.updated_records) ||
+      result.updated_records < 0
+    ) {
+      throw new Error("Community account unlink was not acknowledged");
+    }
+    clearLocalSession();
+  }
+
+  private async trackAccountRequest<T>(request: Promise<T>): Promise<T> {
+    this.accountRequests.add(request);
+    try {
+      return await request;
+    } finally {
+      this.accountRequests.delete(request);
+    }
+  }
+
   /**
    * Check if community uploads are enabled.
    *
-   * Uploads default to enabled (opt-out model). The privacy policy change is
-   * communicated via the "What's New" modal, and users can disable uploads
-   * at any time in Settings → Privacy.
+   * Settings require a recorded opt-in; missing values never grant permission.
    */
   public async isEnabled(): Promise<boolean> {
     const enabled = await this.settingsStore.get(
       SettingsKey.CommunityUploadsEnabled,
     );
-    // Only disabled when the user has explicitly toggled it off
-    return enabled !== false;
+    return enabled === true;
   }
 
   /**
@@ -574,6 +669,7 @@ class CommunityUploadService {
     game: GameType,
     league: string,
   ): Promise<"done" | "changed" | "missing" | "retry-later"> {
+    if (!(await this.isEnabled())) return "retry-later";
     const row = await this.kysely
       .selectFrom("community_upload_outbox")
       .select([
@@ -605,7 +701,11 @@ class CommunityUploadService {
       }
 
       const deviceId = await this.getDeviceId();
-      await this.sendPendingUpload(game, league, cardEntries, deviceId);
+      if (
+        !(await this.sendPendingUpload(game, league, cardEntries, deviceId))
+      ) {
+        return "retry-later";
+      }
 
       const latest = await this.kysely
         .selectFrom("community_upload_outbox")
@@ -646,12 +746,13 @@ class CommunityUploadService {
     prepared: PreparedPendingUpload,
   ): Promise<void> {
     try {
-      await this.sendPendingUpload(
+      const sent = await this.sendPendingUpload(
         game,
         league,
         prepared.cards,
         prepared.deviceId,
       );
+      if (!sent) return;
 
       const latest = await this.kysely
         .selectFrom("community_upload_outbox")
@@ -800,7 +901,9 @@ class CommunityUploadService {
     league: string,
     cardEntries: CommunityUploadCard[],
     deviceId: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
+    if (this.gggUnlinkJob) return false;
+    const accountRevision = this.gggAccountRevision;
     let gggAccessToken: string | null = null;
     try {
       gggAccessToken = await GggAuthService.getInstance().getAccessToken();
@@ -809,6 +912,11 @@ class CommunityUploadService {
         "[CommunityUpload] GGG token unavailable, uploading without linked account",
       );
     }
+
+    // A preference may change while the account token is being read.
+    if (!(await this.isEnabled())) return false;
+    if (this.gggUnlinkJob || accountRevision !== this.gggAccountRevision)
+      return false;
 
     console.log(
       `[CommunityUpload] Uploading ${cardEntries.length} unique cards for ${game}/${league}` +
@@ -827,14 +935,16 @@ class CommunityUploadService {
       extraHeaders["X-GGG-Token"] = gggAccessToken;
     }
 
-    const result = await this.supabase.callEdgeFunction<{
-      success: boolean;
-      upload_id: string;
-      total_cards: number;
-      unique_cards: number;
-      upload_count: number;
-      is_verified: boolean;
-    }>("v2-upload-community-data", payload, extraHeaders);
+    const result = await this.trackAccountRequest(
+      this.supabase.callEdgeFunction<{
+        success: boolean;
+        upload_id: string;
+        total_cards: number;
+        unique_cards: number;
+        upload_count: number;
+        is_verified: boolean;
+      }>("v2-upload-community-data", payload, extraHeaders),
+    );
 
     console.log(
       `[CommunityUpload] Upload successful: ${result.unique_cards} unique cards (${cardEntries.length} changed), upload #${result.upload_count}`,
@@ -877,6 +987,8 @@ class CommunityUploadService {
         }),
       )
       .execute();
+
+    return true;
   }
 
   private async enqueueChangedUploadsForAllLeagues(): Promise<void> {
@@ -1048,6 +1160,10 @@ class CommunityUploadService {
     deviceId: string,
   ): Promise<void> {
     while (true) {
+      // Recheck for every batch, including startup/resume retries and history.
+      // Local event collection does not imply permission to send it.
+      if (!(await this.isEnabled())) return;
+      if ((await this.repository.getDropContextConsent()) !== true) return;
       const events = await this.getPendingDropEvents(game, league);
       if (events.length === 0) {
         await this.clearDropEventUploadState(game, league);
@@ -1056,6 +1172,8 @@ class CommunityUploadService {
       if (!this.reserveDropEventRequest()) break;
 
       try {
+        if (!(await this.isEnabled())) return;
+        if ((await this.repository.getDropContextConsent()) !== true) return;
         await this.sendPendingDropEvents(game, league, events, deviceId);
         await this.deletePendingDropEvents(events);
         await this.clearDropEventUploadState(game, league);
@@ -1144,6 +1262,12 @@ class CommunityUploadService {
   private async readDropContextUploadStatus(
     revision: number,
   ): Promise<CommunityDropContextUploadStatus> {
+    if (
+      !(await this.isEnabled()) ||
+      (await this.repository.getDropContextConsent()) !== true
+    ) {
+      return { pendingEvents: 0, isUploading: false, revision };
+    }
     const row = await this.kysely
       .selectFrom("community_drop_event_outbox")
       .select(({ fn }) => fn.countAll<number>().as("count"))

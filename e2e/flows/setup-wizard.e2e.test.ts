@@ -301,10 +301,29 @@ test.describe("Setup Wizard", () => {
         .waitFor({ state: "visible", timeout: 15_000 });
 
       // Verify telemetry content
-      await expect(page.getByText("Crash Reporting")).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: /Crash Reporting/ }),
+      ).toBeVisible();
       await expect(page.getByText("Sentry")).toBeVisible();
-      await expect(page.getByText("Community Drop Rates")).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Community Drop Rates" }),
+      ).toBeVisible();
       await expect(page.getByText("Usage Analytics")).toHaveCount(0);
+      await expect(
+        page.getByRole("checkbox", {
+          name: /I agree to share my card opening times/,
+        }),
+      ).not.toBeVisible();
+      await expect(
+        page.getByText("These times show time-of-day patterns."),
+      ).not.toBeVisible();
+      await expect(
+        callElectronAPI(page, "settings", "get", "communityUploadsEnabled"),
+      ).resolves.toBe(false);
+      await page.screenshot({
+        path: "e2e/test-results/opening-time-consent-setup.png",
+        animations: "disabled",
+      });
 
       // Verify privacy policy link
       const privacyLink = page.getByRole("link", {
@@ -323,6 +342,11 @@ test.describe("Setup Wizard", () => {
       // We click Finish to verify the UI interaction, then use skipSetup via
       // IPC as a fallback to bypass filesystem validation.
       await finishBtn.click();
+      await expect
+        .poll(() =>
+          callElectronAPI(page, "communityUpload", "getDropContextConsent"),
+        )
+        .toEqual({ success: true, consent: null });
 
       // Wait for the route to settle (either redirected to "/" or stayed on
       // "/setup" because Client.txt doesn't exist). Poll instead of using a

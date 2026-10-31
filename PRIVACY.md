@@ -38,15 +38,16 @@ When the app contacts backend endpoints, Soothsayer may create a short-lived pse
 
 When community uploads are enabled (Settings → Privacy & Telemetry), Soothsayer automatically shares your stacked deck drop data at the end of each session to help build community drop rate statistics.
 
-- A **locally-generated random ID** (UUID) is used to identify your device for deduplication — this ID is generated once and stored only on your machine. It is not linked to any personal identity.
+- All shared card data (names, counts, and separately opted-in opening times and areas) is uploaded anonymously under a **locally-generated random ID** (UUID) unless you choose to verify your data by linking your GGG account. This ID identifies your installation for deduplication without including your GGG account details in unverified uploads.
 - Your **card drop counts** (card name + cumulative count) are uploaded per league
-- For card drops that can be matched to an entry in `Client.txt`, the **in-game area name**, **minute of the local day**, and **UTC offset** at the time of the drop are uploaded. Exact dates and timestamps are not uploaded.
-- Soothsayer may scan preserved entries in `Client.txt` to add this context to earlier locally recorded drops. Context is skipped when the log was deleted, truncated, has no preceding area entry, or cannot be matched confidently.
+- **Opening times and in-game areas are off by default and require separate, explicit agreement**, including for users who already enabled card count uploads. Enabling Community Drop Rates or linking a GGG account does not grant this permission.
+- Only after you agree, card drops that can be matched to an entry in `Client.txt` share the **in-game area name**, **minute of the local day**, and **UTC offset** at the time of the opening. **These times show time-of-day patterns.** Unverified uploads use a random installation ID, without your GGG account details. Areas refer to locations within Path of Exile, not your real-world location. Exact dates and timestamps are not uploaded.
+- Soothsayer may scan preserved entries in `Client.txt` to add this context to earlier locally recorded drops. Your separate agreement also covers uploading this historical context. Until you agree, context and queued events stay on your device. Context is skipped when the log was deleted, truncated, has no preceding area entry, or cannot be matched confidently.
 - If you link your GGG account via OAuth, your **GGG account name** and **GGG account UUID** are stored alongside your uploads for a "verified" badge
 - The GGG OAuth token is used solely to verify your identity and is **not** stored server-side
-- Uploads are **on by default** but can be disabled at any time in Settings → Privacy & Telemetry
+- Community uploads are **off until you explicitly enable Community Drop Rates** in Settings → Privacy & Telemetry or confirm the contribution banner. Existing contributors keep their original agreement to share card names and counts, unless they turned sharing off. Older automatic upload preferences alone do not grant consent. Opening times and areas always require their separate agreement. Turning community uploads off stops both card-count and time/area uploads.
 - GGG account linking is **entirely optional** — uploads work anonymously without it
-- **Existing cumulative card counts** from prior sessions are never uploaded automatically. If you have counts that have not been contributed yet, the app shows a one-time banner with an opt-in checkbox. This count backfill only runs if you explicitly check the box and confirm. Dismissing the banner is **permanent** (persisted locally). When community uploads are enabled, the contextual `Client.txt` enrichment described above may still run for earlier locally recorded drops because it uploads only area and time-of-day context for those already recorded events.
+- **Existing cumulative card counts** stay local until you enable community sharing. If you have counts that have not been contributed yet, the app shows a one-time banner with an opt-in checkbox. Checking the box and confirming enables Community Drop Rates and contributes those counts. Dismissing the banner is **permanent** (persisted locally); you can still choose to share from Settings later. This count backfill does not grant permission to upload opening times and areas; that requires the separate agreement above.
 
 ### Local App Performance Diagnostics
 
@@ -122,10 +123,12 @@ The app is **fully functional** with crash reporting disabled. No features are g
 
 ### Community Uploads
 
-Community drop rate uploads are enabled by default and can be toggled independently:
+Community drop rate uploads require explicit opt-in and can be toggled independently:
 
 - **Settings → Privacy & Telemetry → Community Drop Rates** — toggle uploads on/off
-- Linking a GGG account is optional — use the "Link GGG Account" button in Settings to get a verified badge, or "Unlink" to return to anonymous uploads
+- **Opening Times & Areas** — shown only while Community Drop Rates is enabled. Use its separate toggle in Privacy settings to agree to share opening times and in-game areas, or turn it off to stop future context uploads without restarting. Uploads already in progress may finish. Previously uploaded data is retained under the retention policy above; see "How to Make a Request" for deletion requests.
+- The one-time sharing prompt offers **Agree** and **Disagree** buttons. Choosing Disagree keeps time and area sharing off and saves that choice, while card names and counts can still be shared. Setup offers the same optional choice through a separate checkbox.
+- Linking a GGG account is optional — use the "Link GGG Account" button in Settings to get a verified badge. **Unlink** removes your GGG account name, account ID, and verified status from this installation's community uploads across all leagues, then clears your local GGG sign-in. The contributed card counts and separately permitted opening times and areas are retained under the random installation ID. Unlinking requires a connection and a valid GGG sign-in to verify ownership; failures are shown so you can reconnect or retry. Uploads from other installations are unaffected.
 
 ### App Performance Diagnostics
 

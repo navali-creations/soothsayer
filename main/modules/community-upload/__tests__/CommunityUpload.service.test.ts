@@ -78,13 +78,16 @@ vi.mock("~/main/modules/ggg-auth", () =>
   createGggAuthServiceMock({ mockGetAccessToken }),
 );
 
-vi.mock("~/main/utils/ipc-validation", () =>
-  createIpcValidationMock({
+vi.mock("~/main/utils/ipc-validation", async (importOriginal) => ({
+  ...createIpcValidationMock({
     mockAssertTrustedSender,
     mockHandleValidationError,
     MockIpcValidationError,
   }),
-);
+  assertBoolean: (
+    await importOriginal<typeof import("~/main/utils/ipc-validation")>()
+  ).assertBoolean,
+}));
 
 vi.mock("~/main/modules/sentry/Sentry.reporter", () => ({
   captureSentryException: mockSentryCaptureException,
@@ -126,7 +129,7 @@ function createKyselyChain(result: unknown = undefined) {
 
 import { CommunityUploadChannel } from "../CommunityUpload.channels";
 // ─── Import SUT (after mocks) ────────────────────────────────────────────────
-import type { CommunityUploadRepository } from "../CommunityUpload.repository";
+import { CommunityUploadRepository } from "../CommunityUpload.repository";
 import { CommunityUploadService } from "../CommunityUpload.service";
 
 function getRepository(
@@ -146,6 +149,10 @@ describe("CommunityUploadService", () => {
     // Default: uploads enabled, supabase configured
     mockSettingsGet.mockResolvedValue(true);
     mockIsConfigured.mockReturnValue(true);
+    vi.spyOn(
+      CommunityUploadRepository.prototype,
+      "getDropContextConsent",
+    ).mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -155,6 +162,83 @@ describe("CommunityUploadService", () => {
   // ─────────────────────────────────────────────────────────────────────────
   // Singleton
   // ─────────────────────────────────────────────────────────────────────────
+
+  describe("GGG account unlinking", () => {
+    beforeEach(() => {
+      mockGetKysely.mockReturnValue(createKyselyChain());
+      service = CommunityUploadService.getInstance();
+      vi.spyOn(service, "getDeviceId").mockResolvedValue(
+        "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      );
+      mockGetAccessToken.mockResolvedValue("valid-ggg-token");
+    });
+
+    it("unlinks this device even with sharing disabled and clears sign-in only after success", async () => {
+      mockSettingsGet.mockResolvedValue(false);
+      const clearSession = vi.fn();
+      mockCallEdgeFunction.mockImplementation(async () => {
+        expect(clearSession).not.toHaveBeenCalled();
+        return { success: true, updated_records: 2 };
+      });
+      await service.unlinkGggAccount(clearSession);
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+        "v2-upload-community-data",
+        {
+          action: "unlink-ggg",
+          device_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        },
+        { "X-GGG-Token": "valid-ggg-token" },
+      );
+      expect(clearSession).toHaveBeenCalledOnce();
+    });
+
+    it("keeps local sign-in when services are unavailable", async () => {
+      mockIsConfigured.mockReturnValue(false);
+      const clearSession = vi.fn();
+      await expect(service.unlinkGggAccount(clearSession)).rejects.toThrow();
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+      expect(clearSession).not.toHaveBeenCalled();
+    });
+
+    it("requires a valid GGG sign-in before sending an unlink request", async () => {
+      mockGetAccessToken.mockResolvedValue(null);
+      const clearSession = vi.fn();
+      await expect(service.unlinkGggAccount(clearSession)).rejects.toThrow();
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+      expect(clearSession).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      null,
+      {},
+      { success: false },
+      { success: true, updated_records: -1 },
+      { success: true, updated_records: "1" },
+    ])(
+      "keeps sign-in when the server does not acknowledge unlinking: %j",
+      async (result) => {
+        mockCallEdgeFunction.mockResolvedValue(result);
+        const clearSession = vi.fn();
+        await expect(service.unlinkGggAccount(clearSession)).rejects.toThrow();
+        expect(clearSession).not.toHaveBeenCalled();
+      },
+    );
+
+    it("permits retry after a server failure", async () => {
+      mockCallEdgeFunction.mockRejectedValueOnce(new Error("offline"));
+      const clearSession = vi.fn();
+      await expect(service.unlinkGggAccount(clearSession)).rejects.toThrow(
+        "offline",
+      );
+      expect(clearSession).not.toHaveBeenCalled();
+      mockCallEdgeFunction.mockResolvedValue({
+        success: true,
+        updated_records: 0,
+      });
+      await service.unlinkGggAccount(clearSession);
+      expect(clearSession).toHaveBeenCalledOnce();
+    });
+  });
 
   describe("singleton", () => {
     it("should return the same instance on repeated calls", () => {
@@ -167,7 +251,7 @@ describe("CommunityUploadService", () => {
     });
   });
 
-  it("registers only the backfill IPC handlers", () => {
+  it("registers the community upload IPC handlers", () => {
     mockGetKysely.mockReturnValue(createKyselyChain());
 
     service = CommunityUploadService.getInstance();
@@ -175,10 +259,119 @@ describe("CommunityUploadService", () => {
     expect(
       mockIpcHandle.mock.calls.map(([channel]: [string]) => channel),
     ).toEqual([
+      CommunityUploadChannel.GetDropContextConsent,
+      CommunityUploadChannel.SetDropContextConsent,
       CommunityUploadChannel.GetBackfillLeagues,
       CommunityUploadChannel.TriggerBackfill,
       CommunityUploadChannel.GetDropContextUploadStatus,
     ]);
+  });
+
+  describe("IPC: opening-time consent", () => {
+    beforeEach(() => {
+      mockGetKysely.mockReturnValue(createKyselyChain());
+      service = CommunityUploadService.getInstance();
+    });
+
+    it("returns the stored choice without granting consent", async () => {
+      vi.spyOn(
+        getRepository(service),
+        "getDropContextConsent",
+      ).mockResolvedValue(null);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CommunityUploadChannel.GetDropContextConsent,
+      );
+      await expect(handler({ sender: { id: 1 } })).resolves.toEqual({
+        success: true,
+        consent: null,
+      });
+    });
+
+    it.each([true, false])(
+      "saves explicit choice %j and starts uploads only on opt-in",
+      async (enabled) => {
+        const save = vi
+          .spyOn(getRepository(service), "setDropContextConsent")
+          .mockResolvedValue();
+        const flush = vi
+          .spyOn(service, "flushPendingUploads")
+          .mockResolvedValue();
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          CommunityUploadChannel.SetDropContextConsent,
+        );
+        await expect(handler({ sender: { id: 1 } }, enabled)).resolves.toEqual({
+          success: true,
+          consent: enabled,
+        });
+        expect(save).toHaveBeenCalledWith(enabled);
+        expect(flush).toHaveBeenCalledTimes(enabled ? 1 : 0);
+      },
+    );
+
+    it.each(["true", 1, null, undefined, {}, []])(
+      "rejects non-boolean choice %j",
+      async (enabled) => {
+        const save = vi.spyOn(getRepository(service), "setDropContextConsent");
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          CommunityUploadChannel.SetDropContextConsent,
+        );
+        mockHandleValidationError.mockReturnValue({
+          success: false,
+          error: "Invalid input",
+        });
+        await expect(handler({ sender: { id: 1 } }, enabled)).resolves.toEqual({
+          success: false,
+          error: "Invalid input",
+        });
+        expect(save).not.toHaveBeenCalled();
+      },
+    );
+
+    it("does not save a choice from an untrusted sender", async () => {
+      const save = vi.spyOn(getRepository(service), "setDropContextConsent");
+      mockAssertTrustedSender.mockImplementationOnce(() => {
+        throw new Error("Untrusted sender");
+      });
+      mockHandleValidationError.mockReturnValue({
+        success: false,
+        error: "Invalid input",
+      });
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CommunityUploadChannel.SetDropContextConsent,
+      );
+      await expect(handler({ sender: { id: 999 } }, true)).resolves.toEqual({
+        success: false,
+        error: "Invalid input",
+      });
+      expect(save).not.toHaveBeenCalled();
+    });
+
+    it("does not start uploading when saving consent fails", async () => {
+      vi.spyOn(
+        getRepository(service),
+        "setDropContextConsent",
+      ).mockRejectedValue(new Error("Database unavailable"));
+      const flush = vi
+        .spyOn(service, "flushPendingUploads")
+        .mockResolvedValue();
+      mockHandleValidationError.mockReturnValue({
+        success: false,
+        error: "Could not save",
+      });
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CommunityUploadChannel.SetDropContextConsent,
+      );
+      await expect(handler({ sender: { id: 1 } }, true)).resolves.toEqual({
+        success: false,
+        error: "Could not save",
+      });
+      expect(flush).not.toHaveBeenCalled();
+    });
   });
 
   describe("IPC: drop-context upload status", () => {
@@ -531,7 +724,7 @@ describe("CommunityUploadService", () => {
       expect(result).toBe(false);
     });
 
-    it("should default to true when setting is undefined", async () => {
+    it("should default to false when setting is undefined", async () => {
       const kyselyMock = createKyselyChain();
       mockGetKysely.mockReturnValue(kyselyMock);
       mockSettingsGet.mockResolvedValue(undefined);
@@ -539,10 +732,10 @@ describe("CommunityUploadService", () => {
       service = CommunityUploadService.getInstance();
       const result = await service.isEnabled();
 
-      expect(result).toBe(true);
+      expect(result).toBe(false);
     });
 
-    it("should default to true when setting is null", async () => {
+    it("should default to false when setting is null", async () => {
       const kyselyMock = createKyselyChain();
       mockGetKysely.mockReturnValue(kyselyMock);
       mockSettingsGet.mockResolvedValue(null);
@@ -550,7 +743,7 @@ describe("CommunityUploadService", () => {
       service = CommunityUploadService.getInstance();
       const result = await service.isEnabled();
 
-      expect(result).toBe(true);
+      expect(result).toBe(false);
     });
   });
 
@@ -1226,14 +1419,17 @@ describe("CommunityUploadService", () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("getBackfillLeagues", () => {
-    it("should return empty when uploads are disabled", async () => {
+    it("can offer the contribution opt-in while uploads are disabled", async () => {
       const kyselyMock = createKyselyChain();
       mockGetKysely.mockReturnValue(kyselyMock);
       mockSettingsGet.mockResolvedValue(false);
 
       service = CommunityUploadService.getInstance();
+      vi.spyOn(getRepository(service), "getBackfillLeagues").mockResolvedValue([
+        { game: "poe1", league: "Settlers" },
+      ]);
       const result = await service.getBackfillLeagues();
-      expect(result).toEqual([]);
+      expect(result).toEqual([{ game: "poe1", league: "Settlers" }]);
     });
 
     it("should return empty when Supabase is not configured", async () => {
@@ -1346,19 +1542,25 @@ describe("CommunityUploadService", () => {
       });
     });
 
-    it("should return empty when uploads are disabled", async () => {
+    it("offers leagues for an explicit contribution while uploads are disabled", async () => {
       const kyselyMock = createKyselyChain();
       mockGetKysely.mockReturnValue(kyselyMock);
       mockSettingsGet.mockResolvedValue(false);
 
       service = CommunityUploadService.getInstance();
+      vi.spyOn(getRepository(service), "getBackfillLeagues").mockResolvedValue([
+        { game: "poe1", league: "Settlers" },
+      ]);
       const handler = getIpcHandler(
         mockIpcHandle,
         CommunityUploadChannel.GetBackfillLeagues,
       );
 
       const result = await handler({ sender: { id: 1 } });
-      expect(result).toEqual({ success: true, leagues: [] });
+      expect(result).toEqual({
+        success: true,
+        leagues: [{ game: "poe1", league: "Settlers" }],
+      });
     });
 
     it("should return empty when all leagues are backfilled", async () => {

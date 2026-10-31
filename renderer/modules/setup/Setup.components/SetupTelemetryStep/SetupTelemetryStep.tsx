@@ -1,12 +1,16 @@
 import { useEffect } from "react";
 import { FiExternalLink, FiShield, FiUploadCloud } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import DropContextConsent from "~/renderer/modules/settings/Settings.components/DropContextConsent/DropContextConsent";
+import { useBoundStore, useSettingsSelector } from "~/renderer/store";
 
 const PRIVACY_POLICY_URL =
   "https://github.com/navali-creations/soothsayer/blob/master/PRIVACY.md";
 
 const SetupTelemetryStep = () => {
+  const communityUploadsEnabled = useSettingsSelector(
+    (s) => s.communityUploadsEnabled,
+  );
   const { hydrate } = useBoundStore((s) => s.settings);
 
   // The backend enables crash reporting when entering step 4. Re-hydrate so
@@ -63,10 +67,8 @@ const SetupTelemetryStep = () => {
                 Community Drop Rates
               </h3>
               <p className="text-xs text-base-content/60 mt-1">
-                Card names, drop counts, in-game area names, and the local
-                minute and UTC offset when a card was opened are shared with a
-                random installation ID to help build community drop statistics
-                on{" "}
+                Card names and drop counts are shared with a random installation
+                ID to help build community drop statistics on{" "}
                 <a
                   href="https://wraeclast.cards"
                   target="_blank"
@@ -75,18 +77,26 @@ const SetupTelemetryStep = () => {
                 >
                   wraeclast.cards <FiExternalLink className="w-3 h-3" />
                 </a>
-                . Exact dates and timestamps stay on your device. A linked Path
-                of Exile account can associate uploads with that account. You
-                can disable this in Settings at any time. Preserved Client.txt
-                entries may enrich earlier drops with the same context.
+                . Uploads are anonymous unless you choose to verify your data by
+                linking your GGG account. You can disable this in Settings at
+                any time. Opening times and in-game areas require your separate
+                agreement below.
               </p>
             </div>
           </div>
         </div>
+        {communityUploadsEnabled && (
+          <div className="bg-base-100 border border-base-content/10 rounded-lg p-4">
+            <DropContextConsent variant="setup" />
+          </div>
+        )}
       </div>
 
       <p className="text-xs text-base-content/50 mt-4">
-        Both are enabled by default. You can opt out of either at any time in{" "}
+        Crash reporting is enabled by default. Community card uploads are off
+        until you choose to contribute or enable Community Drop Rates in
+        Settings. Opening times and areas require separate agreement. You can
+        change these choices at any time in{" "}
         <span className="font-semibold text-base-content/70">
           Settings → Privacy & Telemetry
         </span>
