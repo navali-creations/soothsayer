@@ -141,7 +141,10 @@ test.describe("Onboarding - Beacon Management", () => {
       .click({ force: true });
     await page.waitForLoadState("domcontentloaded", { timeout: 30_000 });
     await waitForHydration(page, 30_000);
-    await waitForRoute(page, "/settings", 10_000);
+    await waitForRoute(page, "/settings?tab=help", 10_000);
+    await expect(
+      page.getByRole("tab", { name: "Help", exact: true }),
+    ).toBeChecked();
     await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
 
     await openManageBeacons(page);

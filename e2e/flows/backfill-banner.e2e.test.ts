@@ -138,9 +138,9 @@ test.describe("BackfillBanner", () => {
       const bannerText = page.getByText("existing and future drop data");
       await expect(bannerText).toBeVisible({ timeout: 5_000 });
       await expect(
-        page.getByText(/^Anonymous uploads use a random installation ID/),
+        page.getByText(/^Anonymous uploads use a random upload ID/),
       ).toContainText(
-        "If you choose to verify your data, we associate it with your GGG account",
+        "If you choose to verify your data, we associate future uploads with your GGG account",
       );
     });
 
