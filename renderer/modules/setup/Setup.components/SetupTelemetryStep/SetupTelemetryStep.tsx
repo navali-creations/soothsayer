@@ -67,8 +67,8 @@ const SetupTelemetryStep = () => {
                 Community Drop Rates
               </h3>
               <p className="text-xs text-base-content/60 mt-1">
-                Card names and drop counts are shared with a random installation
-                ID to help build community drop statistics on{" "}
+                Card names and drop counts are shared with a random upload ID to
+                help build community drop statistics on{" "}
                 <a
                   href="https://wraeclast.cards"
                   target="_blank"

@@ -111,6 +111,7 @@ export function createDatabaseServiceMock(
       getInstance: vi.fn(() => ({
         getKysely: overrides.mockGetKysely ?? vi.fn(),
         getDb: overrides.mockGetDb ?? vi.fn(),
+        getPath: vi.fn(() => ":memory:"),
         reset: overrides.mockReset ?? vi.fn(),
       })),
     },
@@ -442,6 +443,8 @@ export interface SupabaseClientMockOverrides {
 // ─── GGG Auth Service Mock ───────────────────────────────────────────────────
 
 interface GggAuthServiceMockOverrides {
+  mockNotifyAuthStatusChanged?: MockFn;
+  mockGetAccountId?: MockFn;
   mockGetAccessToken?: MockFn;
   mockAuthenticate?: MockFn;
   mockHandleCallback?: MockFn;
@@ -465,6 +468,8 @@ export function createGggAuthServiceMock(
   overrides: GggAuthServiceMockOverrides = {},
 ): Record<string, unknown> {
   const {
+    mockNotifyAuthStatusChanged = vi.fn(),
+    mockGetAccountId = vi.fn().mockResolvedValue(null),
     mockGetAccessToken = vi.fn().mockResolvedValue(null),
     mockAuthenticate = vi.fn(),
     mockHandleCallback = vi.fn(),
@@ -474,6 +479,8 @@ export function createGggAuthServiceMock(
   return {
     GggAuthService: {
       getInstance: vi.fn(() => ({
+        notifyAuthStatusChanged: mockNotifyAuthStatusChanged,
+        getAccountId: mockGetAccountId,
         getAccessToken: mockGetAccessToken,
         authenticate: mockAuthenticate,
         handleCallback: mockHandleCallback,
@@ -484,6 +491,7 @@ export function createGggAuthServiceMock(
       GetAuthStatus: "ggg-auth:get-status",
       Authenticate: "ggg-auth:authenticate",
       Logout: "ggg-auth:logout",
+      AuthStatusChanged: "ggg-auth:status-changed",
     },
   };
 }

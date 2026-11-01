@@ -22,6 +22,8 @@ import {
 import { ensurePostSetup, navigateTo } from "../helpers/navigation";
 import {
   clearSessionHistory,
+  dbExec,
+  dbQuery,
   seedDataStoreForStatistics,
   seedMultipleCompletedSessions,
   seedSessionPrerequisites,
@@ -174,6 +176,17 @@ test.describe("Sessions multi-session delete", () => {
   }) => {
     const { leagueId } = await seedDeleteSessions(page);
 
+    await dbExec(
+      page,
+      `INSERT OR IGNORE INTO community_upload_card_counts (identity_id, game, scope, card_name, count)
+      SELECT (SELECT value FROM app_metadata WHERE key = 'community_active_upload_identity'), game, scope, card_name, count
+      FROM cards WHERE game = 'poe1' AND scope = 'Standard'`,
+    );
+    const contributionsBefore = await dbQuery(
+      page,
+      "SELECT identity_id, game, scope, card_name, count FROM community_upload_card_counts ORDER BY identity_id, game, scope, card_name",
+    );
+
     await goToSessions(page);
 
     const cards = page.locator("main ul li .card");
@@ -261,6 +274,12 @@ test.describe("Sessions multi-session delete", () => {
     );
     expect(globalStats.totalStackedDecksOpened).toBe(22);
 
+    expect(
+      await dbQuery(
+        page,
+        "SELECT identity_id, game, scope, card_name, count FROM community_upload_card_counts ORDER BY identity_id, game, scope, card_name",
+      ),
+    ).toEqual(contributionsBefore);
     await goToSettings(page);
     await expect(page.getByText("Disk Usage", { exact: true })).toBeVisible();
     const leagueUsage = await callElectronAPI<LeagueStorageUsage[]>(

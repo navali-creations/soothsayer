@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useCallback, useMemo } from "react";
 
 import { PageContainer } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
@@ -20,32 +21,24 @@ import {
   createAppBehaviorCategory,
   createGamePathsCategory,
   handleSelectFile,
+  SETTINGS_TABS,
+  type SettingsTabId,
 } from "../Settings.utils/Settings.utils";
 import { SettingsTabItem } from "./SettingsTabItem/SettingsTabItem";
-
-const SETTINGS_TABS = [
-  { id: "game", label: "Game" },
-  { id: "app", label: "App" },
-  { id: "overlay", label: "Overlay" },
-  { id: "audio", label: "Audio" },
-  { id: "storage", label: "Data & Storage" },
-  { id: "privacy", label: "Privacy" },
-  { id: "help", label: "Help" },
-  { id: "troubleshooting", label: "Troubleshooting" },
-  { id: "advanced", label: "Advanced", tone: "danger" },
-] as const;
-
-type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
 
 const SettingsPage = () => {
   const settings = useBoundStore((state) => state.settings);
   const isLoading = settings.isLoading;
   const updateSetting = settings.updateSetting;
-  const [activeTab, setActiveTab] = useState<SettingsTabId>("game");
+  const { tab: activeTab = "game" } = useSearch({ from: "/settings" });
+  const navigate = useNavigate({ from: "/settings" });
 
-  const handleSelectTab = useCallback((tabId: SettingsTabId) => {
-    setActiveTab(tabId);
-  }, []);
+  const handleSelectTab = useCallback(
+    (tabId: SettingsTabId) => {
+      void navigate({ search: { tab: tabId }, replace: true });
+    },
+    [navigate],
+  );
 
   const categories = useMemo(() => {
     const gamePaths = createGamePathsCategory(settings, (key, title) =>

@@ -27,6 +27,8 @@ import { migration_20260626_120000_add_filter_tier_styles } from "./20260626_120
 import { migration_20261025_120000_remove_retired_analytics_storage } from "./20261025_120000_remove_retired_analytics_storage";
 import { migration_20261025_130000_add_card_drop_context } from "./20261025_130000_add_card_drop_context";
 import { migration_20261027_120000_allow_time_only_drop_context } from "./20261027_120000_allow_time_only_drop_context";
+import { migration_20261031_120000_scope_community_upload_identities } from "./20261031_120000_scope_community_upload_identities";
+import { migration_20261031_130000_reconcile_community_contributions } from "./20261031_130000_reconcile_community_contributions";
 import type { Migration } from "./Migration.interface";
 
 /**
@@ -66,6 +68,8 @@ export const migrations: Migration[] = [
   migration_20261025_120000_remove_retired_analytics_storage,
   migration_20261025_130000_add_card_drop_context,
   migration_20261027_120000_allow_time_only_drop_context,
+  migration_20261031_120000_scope_community_upload_identities,
+  migration_20261031_130000_reconcile_community_contributions,
 ];
 
 export type { Migration } from "./Migration.interface";

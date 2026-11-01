@@ -48,6 +48,17 @@ export function createElectronMock() {
       onDropContextUploadStatusChanged: mockListener(),
     },
 
+    gggAuth: {
+      getAuthStatus: vi.fn().mockResolvedValue({
+        authenticated: false,
+        username: null,
+        accountId: null,
+      }),
+      authenticate: vi.fn().mockResolvedValue({ success: false }),
+      logout: vi.fn().mockResolvedValue({ success: true }),
+      onAuthStatusChanged: mockListener(),
+    },
+
     // ── App ────────────────────────────────────────────────────────────
     app: {
       restart: vi.fn().mockResolvedValue(undefined),

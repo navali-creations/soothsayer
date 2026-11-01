@@ -1,10 +1,13 @@
-import { sql } from "kysely";
+import { Kysely, SqliteDialect, sql } from "kysely";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createTestDatabase,
+  seedLeague,
+  seedSession,
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
+import type { Database } from "~/main/modules/database/Database.types";
 
 import { CommunityUploadRepository } from "../CommunityUpload.repository";
 
@@ -25,6 +28,116 @@ describe("CommunityUploadRepository", () => {
 
   afterEach(async () => {
     await testDb.close();
+  });
+
+  it("uses indexed owner lookups for a 120,000-event history queue", async () => {
+    testDb.db
+      .prepare(
+        "INSERT INTO app_metadata (key, value) VALUES ('device_id', 'history-owner')",
+      )
+      .run();
+    const leagueId = await seedLeague(testDb.kysely, { name: "History" });
+    const sessionId = await seedSession(testDb.kysely, { leagueId });
+    testDb.db
+      .prepare(`WITH RECURSIVE events(n) AS (
+      SELECT 1 UNION ALL SELECT n+1 FROM events WHERE n < 120000
+    ) INSERT INTO community_drop_event_outbox (
+      event_id, session_id, game, scope, card_name, local_minute, utc_offset_minutes, identity_id
+    ) SELECT printf('00000000-0000-4000-8000-%012x', n), ?, 'poe1', 'History', 'The Scholar', 1, 0, 'history-owner' FROM events`)
+      .run(sessionId);
+    const queries: Array<{ sql: string; parameters: readonly unknown[] }> = [];
+    const observed = new Kysely<Database>({
+      dialect: new SqliteDialect({
+        database: {
+          close() {},
+          prepare: (statement) => testDb.db.prepare(statement),
+        },
+      }),
+      log: (event) => {
+        if (event.level === "query") queries.push(event.query);
+      },
+    });
+    try {
+      const measuredRepository = new CommunityUploadRepository(observed);
+      await expect(
+        measuredRepository.getUploadWarning(null, true),
+      ).resolves.toBeUndefined();
+      const details = queries.flatMap((query) => {
+        const plan = testDb.db
+          .prepare(`EXPLAIN QUERY PLAN ${query.sql}`)
+          .all(...query.parameters) as Array<{ detail: string }>;
+        return plan.map((row) => row.detail);
+      });
+      expect(
+        details.some((detail) =>
+          /SEARCH event .*idx_community_drop_events_identity/.test(detail),
+        ),
+      ).toBe(true);
+      expect(details.some((detail) => /SCAN event/.test(detail))).toBe(false);
+      testDb.db.exec(
+        "INSERT INTO community_upload_identities (id, kind) VALUES ('current-owner', 'anonymous'); UPDATE app_metadata SET value='current-owner' WHERE key='community_active_upload_identity'",
+      );
+      await expect(
+        measuredRepository.getUploadWarning(null, true),
+      ).resolves.toBe("verification-required");
+      await expect(
+        measuredRepository.getUploadWarning(null, false),
+      ).resolves.toBeUndefined();
+    } finally {
+      await observed.destroy();
+    }
+  });
+
+  it("releases only the linked account's verification failures and preserves other retry delays", async () => {
+    await testDb.kysely
+      .insertInto("community_upload_identities")
+      .values([
+        { id: "owner-a", kind: "verified", account_id: "account-a" },
+        { id: "owner-b", kind: "verified", account_id: "account-b" },
+      ])
+      .execute();
+    const later = "2099-01-01T00:00:00.000Z";
+    await testDb.kysely
+      .insertInto("community_upload_outbox")
+      .values([
+        {
+          identity_id: "owner-a",
+          game: "poe1",
+          scope: "proof",
+          cards_json: "[]",
+          next_attempt_at: later,
+          last_error: "COMMUNITY_IDENTITY_PROOF_REQUIRED",
+        },
+        {
+          identity_id: "owner-a",
+          game: "poe1",
+          scope: "network",
+          cards_json: "[]",
+          next_attempt_at: later,
+          last_error: "offline",
+        },
+        {
+          identity_id: "owner-b",
+          game: "poe1",
+          scope: "proof",
+          cards_json: "[]",
+          next_attempt_at: later,
+          last_error: "COMMUNITY_IDENTITY_PROOF_REQUIRED",
+        },
+      ])
+      .execute();
+    await repository.releaseVerificationRetries("account-a");
+    const rows = await testDb.kysely
+      .selectFrom("community_upload_outbox")
+      .select(["identity_id", "scope", "next_attempt_at"])
+      .orderBy("identity_id")
+      .orderBy("scope")
+      .execute();
+    expect(rows).toEqual([
+      { identity_id: "owner-a", scope: "network", next_attempt_at: later },
+      { identity_id: "owner-a", scope: "proof", next_attempt_at: null },
+      { identity_id: "owner-b", scope: "proof", next_attempt_at: later },
+    ]);
   });
 
   it("requires a separate choice even when community uploads were enabled", async () => {

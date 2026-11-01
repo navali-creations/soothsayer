@@ -295,3 +295,90 @@ quietTest(
     fetchMock.restore();
   },
 );
+
+quietTest(
+  "upload-community-drop-events — derives verification from the GGG token",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    try {
+      fetchMock.onUrlContaining("poe_leagues", () =>
+        postgrestResponse({ id: LEAGUE_ID }),
+      );
+      fetchMock.onUrlContaining("api.pathofexile.com/profile", () =>
+        postgrestResponse({ uuid: "account-a", name: "Account A" }),
+      );
+      fetchMock.onUrlContaining(
+        supabaseUrls.rpc("ingest_community_drop_events"),
+        (_url, init) => {
+          assertEquals(JSON.parse(String(init?.body)).p_ggg_uuid, "account-a");
+          return rpcResponse(1);
+        },
+      );
+      const response = await handler(
+        createMockRequest(FUNCTION_URL, {
+          method: "POST",
+          body: validBody({ ggg_uuid: "untrusted-body-account" }),
+          bearerToken: "test-jwt-token",
+          apikey: "test-anon-key",
+          headers: { "x-ggg-token": "proof-a" },
+        }),
+      );
+      assertEquals(response.status, 200);
+    } finally {
+      fetchMock.restore();
+    }
+  },
+);
+
+quietTest(
+  "upload-community-drop-events — failed GGG proof never falls back to anonymous context",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    try {
+      setupHappyPath(fetchMock);
+      fetchMock.onUrlContaining("api.pathofexile.com/profile", () =>
+        postgrestResponse({}, 401),
+      );
+      const response = await handler(
+        createMockRequest(FUNCTION_URL, {
+          method: "POST",
+          body: validBody(),
+          bearerToken: "test-jwt-token",
+          apikey: "test-anon-key",
+          headers: { "x-ggg-token": "expired" },
+        }),
+      );
+      assertEquals(response.status, 502);
+      assertEquals(
+        fetchMock.calls.filter((call) =>
+          call.url.includes("ingest_community_drop_events"),
+        ).length,
+        0,
+      );
+    } finally {
+      fetchMock.restore();
+    }
+  },
+);
+
+quietTest(
+  "upload-community-drop-events — reports proof-required errors from the protected transaction",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    try {
+      setupHappyPath(fetchMock, () =>
+        postgrestError("community_identity_proof_required", "42501", 403),
+      );
+      const response = await handler(
+        createAuthorizedRequest(FUNCTION_URL, validBody()),
+      );
+      assertEquals(response.status, 409);
+      assertEquals(
+        (await responseBody<{ code: string }>(response)).code,
+        "COMMUNITY_IDENTITY_PROOF_REQUIRED",
+      );
+    } finally {
+      fetchMock.restore();
+    }
+  },
+);

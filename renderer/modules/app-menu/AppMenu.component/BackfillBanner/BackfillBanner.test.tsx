@@ -170,9 +170,9 @@ describe("BackfillBanner", () => {
       screen.getByText(/Contribute your existing and future drop data/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/^Anonymous uploads use a random installation ID/),
+      screen.getByText(/^Anonymous uploads use a random upload ID/),
     ).toHaveTextContent(
-      "If you choose to verify your data, we associate it with your GGG account",
+      "If you choose to verify your data, we associate future uploads with your GGG account",
     );
   });
 

@@ -29,6 +29,8 @@ const {
   mockAppIsPackaged,
   mockLinkGggAccount,
   mockUnlinkGggAccount,
+  mockWebContentsSend,
+  mockGetAllWindows,
 } = vi.hoisted(() => {
   class _MockIpcValidationError extends Error {
     detail: string;
@@ -69,12 +71,15 @@ const {
     mockAppIsPackaged: vi.fn(() => false),
     mockLinkGggAccount: vi.fn().mockResolvedValue(undefined),
     mockUnlinkGggAccount: vi.fn(),
+    mockWebContentsSend: vi.fn(),
+    mockGetAllWindows: vi.fn(),
   };
 });
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 vi.mock("electron", () => ({
+  BrowserWindow: { getAllWindows: mockGetAllWindows },
   app: {
     getPath: mockGetPath,
     get isPackaged() {
@@ -258,10 +263,35 @@ function mockStoredSession(session: Record<string, unknown> | null): void {
   }
 }
 
-/**
- * Start an auth flow and return the state extracted from the URL opened in the browser.
- * Also returns the authenticate promise so the caller can await/assert on it.
- */
+/** Observe the current file across credential writes and deletion. */
+function mockMutableSessionFile(session: Record<string, unknown>) {
+  let contents: Buffer | null = Buffer.from(JSON.stringify(session));
+  mockFsExistsSync.mockImplementation(() => contents !== null);
+  mockFsReadFileSync.mockImplementation(() => {
+    if (!contents) throw new Error("Session file is missing");
+    return contents;
+  });
+  mockSafeStorageDecrypt.mockImplementation((data: Buffer) => ({
+    result: data.toString("utf8"),
+  }));
+  mockSafeStorageEncrypt.mockImplementation((data: string) =>
+    Buffer.from(data),
+  );
+  mockFsWriteFileSync.mockImplementation(
+    (_path: string, data: Buffer | string) => {
+      contents = typeof data === "string" ? Buffer.from(data) : data;
+    },
+  );
+  mockFsUnlinkSync.mockImplementation(() => {
+    contents = null;
+  });
+  return () =>
+    contents
+      ? (JSON.parse(contents.toString("utf8")) as Record<string, unknown>)
+      : null;
+}
+
+/** Start OAuth and capture the callback URL without opening a real browser. */
 function startAuthFlowAndCaptureState(service: GggAuthService): {
   authPromise: Promise<{
     success: boolean;
@@ -338,6 +368,9 @@ describe("GggAuthService", () => {
     restoreGggAuthEnv();
 
     // Reset defaults
+    mockGetAllWindows.mockReturnValue([
+      { isDestroyed: () => false, webContents: { send: mockWebContentsSend } },
+    ]);
     mockGetPath.mockReturnValue("/fake/userData");
     mockSafeStorageIsAvailable.mockReturnValue(true);
     mockSafeStorageEncrypt.mockReturnValue(Buffer.from("encrypted"));
@@ -496,6 +529,9 @@ describe("GggAuthService", () => {
 
       // existsSync is called in both load (to check file) and delete (to check before unlink)
       expect(mockFsUnlinkSync).toHaveBeenCalled();
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        GggAuthChannel.AuthStatusChanged,
+      );
     });
   });
 
@@ -665,6 +701,57 @@ describe("GggAuthService", () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("handleCallback", () => {
+    it.each(["success", "failure"])(
+      "preserves replacement credentials when older identity verification ends with %s",
+      async (outcome) => {
+        const stored = mockMutableSessionFile(MOCK_SESSION);
+        mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+        let finishLink!: () => void;
+        let failLink!: (error: Error) => void;
+        mockLinkGggAccount.mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              finishLink = resolve;
+              failLink = reject;
+            }),
+        );
+        const service = GggAuthService.getInstance();
+        const { authPromise, getCallbackUrl } =
+          startAuthFlowAndCaptureState(service);
+        const callback = service.handleCallback(getCallbackUrl());
+        await vi.waitFor(() => expect(finishLink).toBeTypeOf("function"));
+        const storage = (
+          service as unknown as {
+            sessionStorage: {
+              save: (session: typeof MOCK_SESSION) => Promise<number | null>;
+            };
+          }
+        ).sessionStorage;
+        await storage.save({
+          ...MOCK_SESSION,
+          sub: "replacement-account",
+          access_token: "replacement-token",
+        });
+        const rejected = expect(authPromise).rejects.toThrow(
+          outcome === "success"
+            ? "Sign-in changed during authentication"
+            : "Verification failed",
+        );
+        if (outcome === "success") finishLink();
+        else failLink(new Error("Verification failed"));
+        await callback;
+        await rejected;
+        expect(stored()).toMatchObject({
+          sub: "replacement-account",
+          access_token: "replacement-token",
+        });
+        await expect(service.getAccountId()).resolves.toBe(
+          "replacement-account",
+        );
+        expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+      },
+    );
+
     it("ignores an invalid callback when no authentication is pending", async () => {
       await expect(
         GggAuthService.getInstance().handleCallback("not a url %%%"),
@@ -965,6 +1052,9 @@ describe("GggAuthService", () => {
       expect(result).toBeNull();
       // Session should be deleted (unlinkSync called)
       expect(mockFsUnlinkSync).toHaveBeenCalled();
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        GggAuthChannel.AuthStatusChanged,
+      );
     });
 
     it("should not throw when refresh fails", async () => {
@@ -1044,7 +1134,97 @@ describe("GggAuthService", () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("Logout handler", () => {
-    it("keeps the local session until the server acknowledges unlinking", async () => {
+    it("preserves a newly linked session when an older decryption fails after unlink", async () => {
+      const stored = mockMutableSessionFile(MOCK_SESSION);
+      let failOld!: (error: Error) => void;
+      mockSafeStorageDecrypt.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            failOld = reject;
+          }),
+      );
+      const service = GggAuthService.getInstance();
+      const oldStatus = getIpcHandler(
+        mockIpcHandle,
+        GggAuthChannel.GetAuthStatus,
+      )();
+      await vi.waitFor(() => expect(failOld).toBeTypeOf("function"));
+      await service.logout();
+      expect(stored()).toBeNull();
+      mockFetch.mockResolvedValueOnce(
+        createSuccessTokenResponse({ sub: "relinked-account" }),
+      );
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+      await service.handleCallback(getCallbackUrl());
+      await expect(authPromise).resolves.toMatchObject({ success: true });
+      failOld(new Error("Old decryption failed"));
+      await expect(oldStatus).resolves.toMatchObject({ authenticated: false });
+      expect(stored()).toMatchObject({ sub: "relinked-account" });
+      await expect(service.getAccountId()).resolves.toBe("relinked-account");
+      expect(mockFsUnlinkSync).toHaveBeenCalledOnce();
+    });
+
+    it("reads the current account when an old credential read finishes after a new sign-in", async () => {
+      const stored = mockMutableSessionFile(MOCK_SESSION);
+      let finishOld!: (result: { result: string }) => void;
+      mockSafeStorageDecrypt.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOld = resolve;
+          }),
+      );
+      const service = GggAuthService.getInstance();
+      const oldAccount = service.getAccountId();
+      await vi.waitFor(() => expect(finishOld).toBeTypeOf("function"));
+      mockFetch.mockResolvedValueOnce(
+        createSuccessTokenResponse({ sub: "new-account" }),
+      );
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+      await service.handleCallback(getCallbackUrl());
+      await authPromise;
+      finishOld({ result: JSON.stringify(MOCK_SESSION) });
+      await expect(oldAccount).resolves.toBe("new-account");
+      expect(stored()).toMatchObject({ sub: "new-account" });
+      await expect(service.getAccountId()).resolves.toBe("new-account");
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+    });
+
+    it("reports repeatedly superseded account reads without treating them as sign-out", async () => {
+      const stored = mockMutableSessionFile(MOCK_SESSION);
+      const service = GggAuthService.getInstance();
+      const storage = (
+        service as unknown as {
+          sessionStorage: {
+            save: (session: typeof MOCK_SESSION) => Promise<number | null>;
+          };
+        }
+      ).sessionStorage;
+      mockSafeStorageDecrypt.mockImplementation(async (data: Buffer) => {
+        await storage.save(MOCK_SESSION);
+        return { result: data.toString("utf8") };
+      });
+      await expect(service.getAccountId()).rejects.toThrow(
+        "GGG sign-in changed while reading the account",
+      );
+      expect(mockSafeStorageDecrypt).toHaveBeenCalledTimes(2);
+      expect(stored()).toMatchObject({ sub: MOCK_SESSION.sub });
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+    });
+
+    it("still clears credentials when renderer notification is unavailable", async () => {
+      mockStoredSession(MOCK_SESSION);
+      mockGetAllWindows.mockImplementation(() => {
+        throw new Error("window unavailable");
+      });
+      await expect(
+        GggAuthService.getInstance().logout(),
+      ).resolves.toBeUndefined();
+      expect(mockFsUnlinkSync).toHaveBeenCalledOnce();
+    });
+
+    it("keeps the local session until the local identity switch completes", async () => {
       mockStoredSession(MOCK_SESSION);
       let acknowledge!: () => void;
       mockUnlinkGggAccount.mockImplementationOnce(
@@ -1065,7 +1245,7 @@ describe("GggAuthService", () => {
       expect(mockFsUnlinkSync).toHaveBeenCalledOnce();
     });
 
-    it("retains sign-in and reports a safe failure when the server cannot unlink", async () => {
+    it("retains sign-in and reports a safe failure when the local identity cannot be changed", async () => {
       mockStoredSession(MOCK_SESSION);
       mockUnlinkGggAccount.mockRejectedValueOnce(
         new Error("private backend details"),
@@ -1114,6 +1294,30 @@ describe("GggAuthService", () => {
       await expect(token).resolves.toBeNull();
     });
 
+    it("does not return stale authenticated status after unlink", async () => {
+      mockStoredSession(MOCK_SESSION);
+      let finishDecrypt!: (result: { result: string }) => void;
+      mockSafeStorageDecrypt.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishDecrypt = resolve;
+          }),
+      );
+      const service = GggAuthService.getInstance();
+      const status = getIpcHandler(
+        mockIpcHandle,
+        GggAuthChannel.GetAuthStatus,
+      )();
+      await vi.waitFor(() => expect(finishDecrypt).toBeTypeOf("function"));
+      await service.logout();
+      finishDecrypt({ result: JSON.stringify(MOCK_SESSION) });
+      await expect(status).resolves.toEqual({
+        authenticated: false,
+        username: null,
+        accountId: null,
+      });
+    });
+
     it("does not recreate sign-in when encryption of a refreshed token finishes after unlink", async () => {
       mockStoredSession(MOCK_EXPIRED_SESSION);
       mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
@@ -1146,7 +1350,7 @@ describe("GggAuthService", () => {
       expect(mockFsUnlinkSync).toHaveBeenCalled();
     });
 
-    it("clears local state after acknowledged unlink even if the session file was already removed", async () => {
+    it("clears local state after the identity switch even if the session file was already removed", async () => {
       mockFsExistsSync.mockReturnValue(false);
 
       GggAuthService.getInstance();
@@ -1212,6 +1416,188 @@ describe("GggAuthService", () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("token refresh", () => {
+    it("shares one refresh across overlapping callers and retains the saved session", async () => {
+      const stored = mockMutableSessionFile(MOCK_EXPIRED_SESSION);
+      let finish!: (
+        response: ReturnType<typeof createSuccessTokenResponse>,
+      ) => void;
+      mockFetch.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const service = GggAuthService.getInstance();
+      const first = service.getAccessToken();
+      const second = service.getAccessToken();
+      expect(second).toBe(first);
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+      finish(
+        createSuccessTokenResponse({
+          access_token: "fresh-token",
+          refresh_token: "fresh-refresh",
+        }),
+      );
+      await expect(Promise.all([first, second])).resolves.toEqual([
+        "fresh-token",
+        "fresh-token",
+      ]);
+      expect(stored()).toMatchObject({
+        access_token: "fresh-token",
+        refresh_token: "fresh-refresh",
+      });
+      await expect(service.getAccessToken()).resolves.toBe("fresh-token");
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+    });
+
+    it("clears a failed shared refresh once and allows a new sign-in afterwards", async () => {
+      const stored = mockMutableSessionFile(MOCK_EXPIRED_SESSION);
+      let finish!: (
+        response: ReturnType<typeof createFailedTokenResponse>,
+      ) => void;
+      mockFetch.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const service = GggAuthService.getInstance();
+      const first = service.getAccessToken();
+      const second = service.getAccessToken();
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+      finish(createFailedTokenResponse(401, "Expired refresh token"));
+      await expect(Promise.all([first, second])).resolves.toEqual([null, null]);
+      expect(mockFsUnlinkSync).toHaveBeenCalledOnce();
+      expect(stored()).toBeNull();
+      mockFetch.mockResolvedValueOnce(
+        createSuccessTokenResponse({ access_token: "relinked-token" }),
+      );
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+      await service.handleCallback(getCallbackUrl());
+      await expect(authPromise).resolves.toMatchObject({ success: true });
+      await expect(service.getAccessToken()).resolves.toBe("relinked-token");
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it.each(["success", "failure"])(
+      "preserves a new sign-in when an older refresh finishes with %s",
+      async (outcome) => {
+        const stored = mockMutableSessionFile(MOCK_EXPIRED_SESSION);
+        let finish!: (response: unknown) => void;
+        mockFetch.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finish = resolve;
+            }),
+        );
+        const service = GggAuthService.getInstance();
+        const oldToken = service.getAccessToken();
+        await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+        mockFetch.mockResolvedValueOnce(
+          createSuccessTokenResponse({
+            access_token: "new-sign-in",
+            sub: "new-account",
+          }),
+        );
+        const { authPromise, getCallbackUrl } =
+          startAuthFlowAndCaptureState(service);
+        await service.handleCallback(getCallbackUrl());
+        await expect(authPromise).resolves.toMatchObject({ success: true });
+        finish(
+          outcome === "success"
+            ? createSuccessTokenResponse({ access_token: "old-refresh" })
+            : createFailedTokenResponse(503, "Temporary upstream failure"),
+        );
+        await expect(oldToken).resolves.toBeNull();
+        expect(stored()).toMatchObject({
+          access_token: "new-sign-in",
+          sub: "new-account",
+        });
+        await expect(service.getAccessToken()).resolves.toBe("new-sign-in");
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+      },
+    );
+
+    it("does not overwrite a new sign-in when encryption of an older refresh finishes late", async () => {
+      const stored = mockMutableSessionFile(MOCK_EXPIRED_SESSION);
+      mockFetch.mockResolvedValueOnce(
+        createSuccessTokenResponse({ access_token: "old-refresh" }),
+      );
+      let finishOldEncryption!: (data: Buffer) => void;
+      mockSafeStorageEncrypt.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOldEncryption = resolve;
+          }),
+      );
+      const service = GggAuthService.getInstance();
+      const oldToken = service.getAccessToken();
+      await vi.waitFor(() =>
+        expect(finishOldEncryption).toBeTypeOf("function"),
+      );
+      mockFetch.mockResolvedValueOnce(
+        createSuccessTokenResponse({
+          access_token: "new-sign-in",
+          sub: "new-account",
+        }),
+      );
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+      await service.handleCallback(getCallbackUrl());
+      await expect(authPromise).resolves.toMatchObject({ success: true });
+      finishOldEncryption(
+        Buffer.from(
+          JSON.stringify({ ...MOCK_SESSION, access_token: "old-refresh" }),
+        ),
+      );
+      await expect(oldToken).resolves.toBeNull();
+      expect(stored()).toMatchObject({
+        access_token: "new-sign-in",
+        sub: "new-account",
+      });
+      expect(mockFsWriteFileSync).toHaveBeenCalledOnce();
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+    });
+
+    it("keeps a new token request coalesced when a superseded request finishes", async () => {
+      const stored = mockMutableSessionFile(MOCK_EXPIRED_SESSION);
+      let finishOld!: (response: unknown) => void;
+      mockFetch.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOld = resolve;
+          }),
+      );
+      const service = GggAuthService.getInstance();
+      const oldToken = service.getAccessToken();
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+      mockFetch.mockResolvedValueOnce(
+        createSuccessTokenResponse({ access_token: "new-sign-in" }),
+      );
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+      await service.handleCallback(getCallbackUrl());
+      await authPromise;
+      let finishNewRead!: (result: { result: string }) => void;
+      mockSafeStorageDecrypt.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishNewRead = resolve;
+          }),
+      );
+      const newToken = service.getAccessToken();
+      await vi.waitFor(() => expect(finishNewRead).toBeTypeOf("function"));
+      finishOld(createFailedTokenResponse(503, "Temporary upstream failure"));
+      await expect(oldToken).resolves.toBeNull();
+      expect(service.getAccessToken()).toBe(newToken);
+      finishNewRead({ result: JSON.stringify(stored()) });
+      await expect(newToken).resolves.toBe("new-sign-in");
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+    });
+
     it("should successfully refresh expired token and save updated session", async () => {
       mockStoredSession(MOCK_EXPIRED_SESSION);
 
@@ -1445,25 +1831,39 @@ describe("GggAuthService", () => {
       await vi.waitFor(() => expect(mockLinkGggAccount).toHaveBeenCalled());
     });
 
-    it("does not fail authentication when background account linking fails", async () => {
-      const consoleError = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-      mockLinkGggAccount.mockRejectedValueOnce(new Error("link failed"));
+    it("does not report verification success until the upload identity is activated", async () => {
+      mockLinkGggAccount.mockRejectedValueOnce(
+        new Error("identity activation failed"),
+      );
       mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
       const { authPromise, getCallbackUrl } = startAuthFlowAndCaptureState(
         GggAuthService.getInstance(),
       );
-
+      const failure = expect(authPromise).rejects.toThrow(
+        "identity activation failed",
+      );
       await GggAuthService.getInstance().handleCallback(getCallbackUrl());
-      await expect(authPromise).resolves.toMatchObject({ success: true });
-      await vi.waitFor(() => {
-        expect(consoleError).toHaveBeenCalledWith(
-          "[GggAuth] Failed to trigger GGG account link:",
-          expect.any(Error),
-        );
+      await failure;
+      expect(await GggAuthService.getInstance().getAccountId()).toBeNull();
+    });
+
+    it("reports a failed identity activation even if clearing credentials also fails", async () => {
+      mockLinkGggAccount.mockRejectedValueOnce(
+        new Error("identity activation failed"),
+      );
+      mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+      mockFsExistsSync.mockReturnValue(true);
+      mockFsUnlinkSync.mockImplementationOnce(() => {
+        throw new Error("disk failure");
       });
-      consoleError.mockRestore();
+      const { authPromise, getCallbackUrl } = startAuthFlowAndCaptureState(
+        GggAuthService.getInstance(),
+      );
+      const failure = expect(authPromise).rejects.toThrow(
+        "identity activation failed",
+      );
+      await GggAuthService.getInstance().handleCallback(getCallbackUrl());
+      await failure;
     });
 
     it("uses an unknown proxy error body when exchange and refresh bodies reject", async () => {

@@ -19,6 +19,12 @@ import {
   setupMigrationDb,
 } from "./migrations-shared";
 
+const reversibleMigrations = migrations.filter(
+  (migration) =>
+    !migration.id.endsWith("scope_community_upload_identities") &&
+    !migration.id.endsWith("reconcile_community_contributions"),
+);
+
 describe("Migrations – Upgrade Paths", () => {
   const { getDb } = setupMigrationDb();
 
@@ -581,9 +587,9 @@ describe("Migrations – Upgrade Paths", () => {
       const db = getDb();
       createBaselineSchema(db);
       const runner = new MigrationRunner(db);
-      runner.runMigrations(migrations);
+      runner.runMigrations(reversibleMigrations);
 
-      for (const m of [...migrations].reverse()) {
+      for (const m of [...reversibleMigrations].reverse()) {
         expect(() => runner.rollbackMigration(m)).not.toThrow();
       }
 
@@ -632,16 +638,16 @@ describe("Migrations – Upgrade Paths", () => {
       createPreAudioSchema(db);
       const runner = new MigrationRunner(db);
 
-      // Apply
-      runner.runMigrations(migrations);
+      // Apply migrations that support rollback. Ownership cannot be collapsed safely.
+      runner.runMigrations(reversibleMigrations);
 
       // Rollback all
-      for (const migration of [...migrations].reverse()) {
+      for (const migration of [...reversibleMigrations].reverse()) {
         runner.rollbackMigration(migration);
       }
 
       // Re-apply
-      expect(() => runner.runMigrations(migrations)).not.toThrow();
+      expect(() => runner.runMigrations(reversibleMigrations)).not.toThrow();
 
       const columns = getColumnNames(db, "user_settings");
       for (const col of EXPECTED_AUDIO_COLUMNS) {

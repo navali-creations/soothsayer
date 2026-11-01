@@ -54,6 +54,7 @@ function installGggAuthMock() {
   const mockGetAuthStatus = vi.fn();
   const mockAuthenticate = vi.fn();
   const mockLogout = vi.fn();
+  const mockOnAuthStatusChanged = vi.fn().mockReturnValue(vi.fn());
   const mockGetBackfillLeagues = vi.fn();
   const mockTriggerBackfill = vi.fn();
   const mockGetDropContextUploadStatus = vi.fn();
@@ -71,6 +72,7 @@ function installGggAuthMock() {
       getAuthStatus: mockGetAuthStatus,
       authenticate: mockAuthenticate,
       logout: mockLogout,
+      onAuthStatusChanged: mockOnAuthStatusChanged,
     },
     communityUpload: {
       getDropContextConsent: mockGetDropContextConsent,
@@ -86,6 +88,7 @@ function installGggAuthMock() {
     mockGetAuthStatus,
     mockAuthenticate,
     mockLogout,
+    mockOnAuthStatusChanged,
     mockGetBackfillLeagues,
     mockTriggerBackfill,
     mockGetDropContextUploadStatus,
@@ -102,6 +105,7 @@ describe("CommunityUploadSlice", () => {
   let mockGetAuthStatus: ReturnType<typeof vi.fn>;
   let mockAuthenticate: ReturnType<typeof vi.fn>;
   let mockLogout: ReturnType<typeof vi.fn>;
+  let mockOnAuthStatusChanged: ReturnType<typeof vi.fn>;
   let mockGetBackfillLeagues: ReturnType<typeof vi.fn>;
   let mockTriggerBackfill: ReturnType<typeof vi.fn>;
   let mockGetDropContextUploadStatus: ReturnType<typeof vi.fn>;
@@ -116,6 +120,7 @@ describe("CommunityUploadSlice", () => {
     mockGetAuthStatus = mocks.mockGetAuthStatus;
     mockAuthenticate = mocks.mockAuthenticate;
     mockLogout = mocks.mockLogout;
+    mockOnAuthStatusChanged = mocks.mockOnAuthStatusChanged;
     mockGetBackfillLeagues = mocks.mockGetBackfillLeagues;
     mockTriggerBackfill = mocks.mockTriggerBackfill;
     mockGetDropContextUploadStatus = mocks.mockGetDropContextUploadStatus;
@@ -269,6 +274,30 @@ describe("CommunityUploadSlice", () => {
   });
 
   describe("drop-context upload status", () => {
+    it("loads account warnings and clears them with a newer successful status", async () => {
+      mockGetDropContextUploadStatus.mockResolvedValue({
+        success: true,
+        status: {
+          pendingEvents: 0,
+          isUploading: false,
+          revision: 1,
+          uploadWarning: "verification-required",
+        },
+      });
+      await store.getState().communityUpload.refreshDropContextUploadStatus();
+      expect(
+        store.getState().communityUpload.dropContextUploadStatus.uploadWarning,
+      ).toBe("verification-required");
+      mockGetDropContextUploadStatus.mockResolvedValue({
+        success: true,
+        status: { pendingEvents: 0, isUploading: false, revision: 2 },
+      });
+      await store.getState().communityUpload.refreshDropContextUploadStatus();
+      expect(
+        store.getState().communityUpload.dropContextUploadStatus.uploadWarning,
+      ).toBeUndefined();
+    });
+
     it("loads the current status", async () => {
       mockGetDropContextUploadStatus.mockResolvedValue({
         success: true,
@@ -384,6 +413,52 @@ describe("CommunityUploadSlice", () => {
   // ── fetchStatus ────────────────────────────────────────────────────
 
   describe("fetchStatus", () => {
+    it("refreshes verification after background credential loss and ignores an older response", async () => {
+      await authenticateStore();
+      let finishOld!: (value: unknown) => void;
+      mockGetAuthStatus.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOld = resolve;
+          }),
+      );
+      const oldRead = store.getState().communityUpload.fetchStatus();
+      let onChange!: () => void;
+      const unsubscribeAuth = vi.fn();
+      mockOnAuthStatusChanged.mockImplementation((callback) => {
+        onChange = callback;
+        return unsubscribeAuth;
+      });
+      mockGetDropContextUploadStatus.mockResolvedValue({
+        success: true,
+        status: { pendingEvents: 0, isUploading: false, revision: 1 },
+      });
+      const stop = store.getState().communityUpload.startListening();
+      mockGetAuthStatus.mockResolvedValue({
+        authenticated: false,
+        username: null,
+        accountId: null,
+      });
+      onChange();
+      await vi.waitFor(() =>
+        expect(store.getState().communityUpload.gggAuthenticated).toBe(false),
+      );
+      finishOld({
+        authenticated: true,
+        username: "Old account",
+        accountId: "old-id",
+      });
+      await oldRead;
+      expect(store.getState().communityUpload).toMatchObject({
+        gggAuthenticated: false,
+        gggUsername: null,
+        gggAccountId: null,
+        isLoadingStatus: false,
+      });
+      stop();
+      expect(unsubscribeAuth).toHaveBeenCalledOnce();
+    });
+
     it("should set isLoadingStatus to true at start", async () => {
       let resolve!: (value: any) => void;
       mockGetAuthStatus.mockReturnValue(

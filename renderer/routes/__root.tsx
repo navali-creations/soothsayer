@@ -11,6 +11,7 @@ import BackfillBanner from "~/renderer/modules/app-menu/AppMenu.component/Backfi
 import DropContextConsentBanner from "~/renderer/modules/app-menu/AppMenu.component/DropContextConsentBanner/DropContextConsentBanner";
 import DropContextUploadStatus from "~/renderer/modules/app-menu/AppMenu.component/DropContextUploadStatus/DropContextUploadStatus";
 import { BeaconHost } from "~/renderer/modules/onboarding";
+import CommunityUploadWarning from "~/renderer/modules/settings/Settings.components/CommunityUploadWarning/CommunityUploadWarning";
 import {
   useAppPerformanceShallow,
   useCommunityUpload,
@@ -118,6 +119,7 @@ const RootLayout = () => {
       <AppMenu />
       {!isSetupMode && <DropContextConsentBanner />}
       {!isSetupMode && <BackfillBanner />}
+      {!isSetupMode && <CommunityUploadWarning showSettingsLink />}
       {!isSetupMode && <DropContextUploadStatus />}
       <div className="flex flex-1 overflow-hidden">
         {!isSetupMode && <Sidebar />}

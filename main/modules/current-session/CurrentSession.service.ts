@@ -761,7 +761,7 @@ class CurrentSessionService {
     const flushCommunityUpload = stopJob.options.flushCommunityUpload;
     stopJob.uploadFlushRequested = flushCommunityUpload;
     const communityUploadPromise = CommunityUploadService.getInstance()
-      .uploadOnSessionEnd(game, activeSession.league, activeSession.sessionId, {
+      .uploadOnSessionEnd(game, activeSession.league, {
         flush: flushCommunityUpload,
       })
       .catch(() => {}); // Error already logged inside uploadOnSessionEnd

@@ -141,6 +141,9 @@ pnpx supabase db push
 pnpx supabase functions deploy
 ```
 
+Apply database migrations before deploying the contribution identity release.
+The legacy upload function is a retirement response and must not be restored from an older build.
+
 For the v2 Supabase hardening release, deploy the named v2 data functions plus
 the hardened OAuth callback, then delete unsupported legacy app-facing data
 functions after the release cutoff:
@@ -148,7 +151,9 @@ functions after the release cutoff:
 ```bash
 pnpx supabase functions deploy v2-get-leagues
 pnpx supabase functions deploy v2-get-latest-snapshot
+pnpx supabase functions deploy upload-community-data # retirement response
 pnpx supabase functions deploy v2-upload-community-data
+pnpx supabase functions deploy upload-community-drop-events
 pnpx supabase functions deploy poe-oauth-callback
 
 pnpx supabase functions delete get-leagues

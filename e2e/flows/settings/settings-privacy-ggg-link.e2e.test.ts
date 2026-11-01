@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../helpers/electron-test";
 import { ensurePostSetup } from "../../helpers/navigation";
+import { dbExec, dbQuery } from "../../helpers/seed-db";
 import {
   activeSettingsPanel,
   goToSettings,
@@ -110,6 +111,12 @@ test.describe("Settings - GGG account linking", () => {
     await expect(modal.getByText("Your account ID")).toBeVisible();
     await expect(modal.getByText("Your password")).toBeVisible();
     await expect(modal.getByText("Your stash tabs or items")).toBeVisible();
+    await expect(
+      modal.getByText(/Previously anonymous uploads stay anonymous/),
+    ).toBeVisible();
+    await expect(
+      modal.getByText(/previously verified uploads stay verified and linked/),
+    ).toBeVisible();
     expect(await getGggAccountLinkClickCount(page)).toBe(0);
 
     await modal
@@ -125,8 +132,8 @@ test.describe("Settings - GGG account linking", () => {
     app,
     page,
   }) => {
-    // Exercise the real renderer action through IPC, with a controlled server
-    // outcome. Main upload ordering and edge ownership have integration tests.
+    // Exercise the renderer action through IPC with a controlled identity-switch
+    // outcome. Actual local identity ownership is covered below and in main tests.
     await app.evaluate(({ ipcMain }) => {
       const handlers = (
         ipcMain as unknown as {
@@ -213,5 +220,114 @@ test.describe("Settings - GGG account linking", () => {
         ).__restoreGggUnlink?.(),
       );
     }
+  });
+  test("refreshes the mounted verification label after a background auth change", async ({
+    app,
+    page,
+  }) => {
+    await page.evaluate(() => {
+      (window as any).__zustandStore.setState((state: any) => {
+        state.communityUpload.gggAuthenticated = true;
+        state.communityUpload.gggUsername = "ExpiredExile";
+        state.communityUpload.gggAccountId = "expired-account";
+      });
+    });
+    const panel = activeSettingsPanel(page);
+    await expect(
+      panel.getByText("ExpiredExile", { exact: true }),
+    ).toBeVisible();
+    await app.evaluate(({ BrowserWindow }) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send("ggg-auth:status-changed");
+      }
+    });
+    await expect(
+      panel.getByText("ExpiredExile", { exact: true }),
+    ).not.toBeVisible();
+    await expect(
+      panel.getByRole("button", { name: /Link GGG Account/i }),
+    ).toBeVisible();
+  });
+
+  test("real unlink starts a new anonymous ID and retains verified counters", async ({
+    page,
+  }) => {
+    const verifiedId = "aaaaaaaa-1111-4222-8333-ffffffffffff";
+    const before = await dbQuery<{ value: string }>(
+      page,
+      "SELECT value FROM app_metadata WHERE key = 'device_id'",
+    );
+    await dbExec(
+      page,
+      "INSERT INTO community_upload_identities (id, kind, account_id) VALUES (?, 'verified', ?)",
+      [verifiedId, "e2e-verified-account"],
+    );
+    await dbExec(
+      page,
+      "UPDATE app_metadata SET value = ? WHERE key = 'community_active_upload_identity'",
+      [verifiedId],
+    );
+    await dbExec(
+      page,
+      "INSERT INTO community_upload_card_counts VALUES (?, 'poe1', 'Standard', 'The Doctor', 7)",
+      [verifiedId],
+    );
+    await dbExec(
+      page,
+      "INSERT INTO community_upload_snapshot (identity_id, game, scope, card_name, count) VALUES (?, 'poe1', 'Standard', 'The Doctor', 7)",
+      [verifiedId],
+    );
+    await page.evaluate(() => {
+      (window as any).__zustandStore.setState((state: any) => {
+        state.communityUpload.gggAuthenticated = true;
+        state.communityUpload.gggUsername = "TestExile";
+        state.communityUpload.gggAccountId = "e2e-verified-account";
+      });
+    });
+    const panel = activeSettingsPanel(page);
+    await expect(
+      panel.getByText(/Previously verified uploads stay verified and linked/),
+    ).toBeVisible();
+    await panel.getByRole("button", { name: "Unlink", exact: true }).click();
+    await expect(
+      panel.getByRole("button", { name: /Link GGG Account/i }),
+    ).toBeVisible();
+    const active = await dbQuery<{
+      id: string;
+      kind: string;
+      account_id: string | null;
+    }>(
+      page,
+      "SELECT i.* FROM community_upload_identities i JOIN app_metadata m ON m.value = i.id WHERE m.key = 'community_active_upload_identity'",
+    );
+    expect(active[0]).toMatchObject({ kind: "anonymous", account_id: null });
+    expect(active[0].id).not.toBe(verifiedId);
+    expect(
+      await dbQuery(
+        page,
+        "SELECT count FROM community_upload_card_counts WHERE identity_id = ?",
+        [active[0].id],
+      ),
+    ).toEqual([]);
+    expect(
+      await dbQuery(
+        page,
+        "SELECT count FROM community_upload_snapshot WHERE identity_id = ?",
+        [verifiedId],
+      ),
+    ).toEqual([{ count: 7 }]);
+    expect(
+      await dbQuery(
+        page,
+        "SELECT kind, account_id FROM community_upload_identities WHERE id = ?",
+        [verifiedId],
+      ),
+    ).toEqual([{ kind: "verified", account_id: "e2e-verified-account" }]);
+    expect(
+      await dbQuery(
+        page,
+        "SELECT value FROM app_metadata WHERE key = 'device_id'",
+      ),
+    ).toEqual(before);
   });
 });

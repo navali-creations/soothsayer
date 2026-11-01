@@ -73,8 +73,8 @@ const BackfillBanner = () => {
           </Link>
         </span>
         <strong className="block mt-0.5 font-bold text-base-content">
-          Anonymous uploads use a random installation ID. If you choose to
-          verify your data, we associate it with your GGG account.
+          Anonymous uploads use a random upload ID. If you choose to verify your
+          data, we associate future uploads with your GGG account.
         </strong>
         {backfillError && (
           <span className="block mt-0.5 text-error" role="alert">

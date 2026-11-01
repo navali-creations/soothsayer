@@ -1,3 +1,8 @@
+import {
+  communityIdentityFailure,
+  readGggToken,
+  verifyGggIdentity,
+} from "../_shared/community-identity.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import {
@@ -266,15 +271,31 @@ Deno.serve(async (req: Request) => {
     return responseJson({ status: 404, body: { error: "League not found" } });
   }
 
+  const token = readGggToken(req);
+  if (token instanceof Response) return token;
+  let account: string | null = null;
+  if (token) {
+    try {
+      account = (await verifyGggIdentity(token)).uuid;
+    } catch {
+      return responseJson({
+        status: 502,
+        body: { error: "GGG profile verification failed" },
+      });
+    }
+  }
   const { data: inserted, error: ingestError } = await supabase.rpc(
     "ingest_community_drop_events",
     {
       p_league_id: league.id,
       p_device_id: deviceId,
       p_events: events,
+      p_ggg_uuid: account,
     },
   );
   if (ingestError) {
+    const ownershipFailure = communityIdentityFailure(ingestError);
+    if (ownershipFailure) return ownershipFailure;
     console.error(`${TAG} event ingestion failed:`, ingestError);
     return responseJson({
       status: 500,

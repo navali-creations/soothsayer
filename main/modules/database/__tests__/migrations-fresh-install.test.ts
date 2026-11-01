@@ -203,6 +203,7 @@ describe("Migrations – Fresh Install", () => {
 
     const columns = getColumnNames(db, "community_upload_outbox");
     expect(columns).toEqual([
+      "identity_id",
       "game",
       "scope",
       "cards_json",
@@ -235,6 +236,7 @@ describe("Migrations – Fresh Install", () => {
       "local_minute",
       "utc_offset_minutes",
       "created_at",
+      "identity_id",
     ]);
     expect(getIndexNames(db, "community_drop_event_outbox")).toContain(
       "idx_community_drop_event_outbox_pending",
@@ -340,7 +342,9 @@ describe("Migrations – Fresh Install", () => {
     runner.runMigrations(migrations);
 
     const columns = getColumnNames(db, "session_card_events");
-    expect(columns.sort()).toEqual(EXPECTED_SESSION_CARD_EVENTS_COLUMNS.sort());
+    expect(columns.sort()).toEqual(
+      [...EXPECTED_SESSION_CARD_EVENTS_COLUMNS, "identity_id"].sort(),
+    );
   });
 
   it("should have correct indexes on session_card_events table", () => {

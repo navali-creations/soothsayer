@@ -6,9 +6,23 @@ import {
   createAppBehaviorCategory,
   createGamePathsCategory,
   handleSelectFile,
+  parseSettingsSearch,
 } from "./Settings.utils";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
+
+describe("settings tab search", () => {
+  it("accepts the Privacy deep link", () => {
+    expect(parseSettingsSearch({ tab: "privacy" })).toEqual({ tab: "privacy" });
+  });
+
+  it.each([undefined, null, "unknown", {}, ["privacy"], 1])(
+    "ignores invalid tabs: %j",
+    (tab) => {
+      expect(parseSettingsSearch({ tab })).toEqual({});
+    },
+  );
+});
 
 function makeSettings(
   overrides: Partial<UserSettingsDTO> = {},

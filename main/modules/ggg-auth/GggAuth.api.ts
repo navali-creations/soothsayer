@@ -18,4 +18,11 @@ export const GggAuthAPI = {
 
   logout: (): Promise<{ success: boolean }> =>
     ipcRenderer.invoke(GggAuthChannel.Logout),
+
+  onAuthStatusChanged: (callback: () => void): (() => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(GggAuthChannel.AuthStatusChanged, handler);
+    return () =>
+      ipcRenderer.removeListener(GggAuthChannel.AuthStatusChanged, handler);
+  },
 };

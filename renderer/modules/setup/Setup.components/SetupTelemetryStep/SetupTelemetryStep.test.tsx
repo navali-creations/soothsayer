@@ -137,7 +137,7 @@ describe("SetupTelemetryStep", () => {
       renderWithProviders(<SetupTelemetryStep />);
 
       expect(
-        screen.getByText(/shared with a random installation ID/),
+        screen.getByText(/shared with a random upload ID/),
       ).toBeInTheDocument();
       expect(
         screen.getByText(

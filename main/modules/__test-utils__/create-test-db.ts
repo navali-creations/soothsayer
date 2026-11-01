@@ -2,6 +2,8 @@ import Database from "better-sqlite3";
 import { Kysely, SqliteDialect } from "kysely";
 
 import type { Database as DatabaseSchema } from "~/main/modules/database";
+import { migration_20261031_120000_scope_community_upload_identities } from "~/main/modules/database/migrations/20261031_120000_scope_community_upload_identities";
+import { migration_20261031_130000_reconcile_community_contributions } from "~/main/modules/database/migrations/20261031_130000_reconcile_community_contributions";
 import type { Confidence, KnownRarity, Rarity } from "~/types/data-stores";
 
 /**
@@ -794,6 +796,8 @@ export function createTestDatabase(): TestDatabase {
 
   // Apply the full schema
   initializeSchema(db);
+  migration_20261031_120000_scope_community_upload_identities.up(db);
+  migration_20261031_130000_reconcile_community_contributions.up(db);
 
   // Create Kysely instance
   const kysely = new Kysely<DatabaseSchema>({

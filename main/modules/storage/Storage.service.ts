@@ -4,6 +4,7 @@ import path from "node:path";
 import { app, ipcMain } from "electron";
 
 import { estimateAppPerformanceStorageBytes } from "~/main/modules/app-performance/AppPerformance.utils";
+import { CommunityIdentityRepository } from "~/main/modules/community-upload/CommunityIdentity.repository";
 import { DatabaseService } from "~/main/modules/database";
 import {
   assertLeagueId,
@@ -614,10 +615,7 @@ class StorageService {
           league.name,
         );
 
-        // 10c. community_upload_snapshot WHERE game AND scope = league_name
-        db.prepare(
-          "DELETE FROM community_upload_snapshot WHERE game = ? AND scope = ?",
-        ).run(league.game, league.name);
+        CommunityIdentityRepository.purgeScope(db, league.game, league.name);
 
         // 11. Delete the league itself
         db.prepare("DELETE FROM leagues WHERE id = ?").run(leagueId);

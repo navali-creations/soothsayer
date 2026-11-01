@@ -20,6 +20,7 @@ import {
   createOptionsRequest,
   createTestJwt,
   mockFetch,
+  postgrestError,
   postgrestResponse,
   quietTest,
   responseBody,
@@ -162,6 +163,36 @@ function setupUploadMergeMock(
     },
   );
 }
+
+quietTest(
+  "v2-upload-community-data — tokenless writes require proof for an existing verified identity",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    try {
+      fetchMock.onUrlContaining("poe_leagues", () =>
+        postgrestResponse({ id: VALID_LEAGUE_ID }),
+      );
+      fetchMock.onUrlContaining(
+        supabaseUrls.rpc("merge_community_upload_data"),
+        () => postgrestError("community_identity_proof_required", "42501", 403),
+      );
+      const response = await handler(
+        createAuthorizedRequest(
+          FUNCTION_URL,
+          validUploadBody(),
+          createTestJwt({ sub: "test-user-id-001" }),
+        ),
+      );
+      assertEquals(response.status, 409);
+      assertEquals(
+        (await responseBody<{ code: string }>(response)).code,
+        "COMMUNITY_IDENTITY_PROOF_REQUIRED",
+      );
+    } finally {
+      fetchMock.restore();
+    }
+  },
+);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CORS
@@ -977,9 +1008,10 @@ quietTest(
         ),
     );
 
-    // Mock community_uploads update
-    fetchMock.onUrlContaining("community_uploads", () =>
-      postgrestResponse([{ id: "upload-1" }, { id: "upload-2" }]),
+    fetchMock.onUrlContaining(
+      supabaseUrls.rpc("resolve_community_upload_identity"),
+      () =>
+        rpcResponse({ device_id: VALID_DEVICE_ID, legacy_anonymous: false }),
     );
 
     const req = createMockRequest(FUNCTION_URL, {
@@ -999,156 +1031,157 @@ quietTest(
       success: boolean;
       ggg_username: string;
       ggg_uuid: string;
-      updated_records: number;
+      device_id: string;
     }>(resp);
     assertEquals(body.success, true);
     assertEquals(body.ggg_uuid, "ggg-uuid-123");
     assertEquals(body.ggg_username, "TestExile");
-    assertEquals(body.updated_records, 2);
+    assertEquals(body.device_id, VALID_DEVICE_ID);
 
     fetchMock.restore();
   },
 );
 
-quietTest(
-  "v2-upload-community-data — unlink clears only the matching installation and preserves statistics",
-  async () => {
+// The database resolves ownership. These cases exercise the returned RPC outcomes.
+for (const scenario of [
+  {
+    name: "returns a fresh identity when the RPC preserves unverified history",
+    restored: false,
+    anonymous: true,
+  },
+  {
+    name: "returns the verified identity selected by the RPC",
+    restored: true,
+    anonymous: false,
+  },
+  {
+    name: "returns a fresh identity when the RPC cannot reuse legacy ownership",
+    restored: false,
+    anonymous: false,
+  },
+]) {
+  quietTest(`v2-upload-community-data — ${scenario.name}`, async () => {
     const fetchMock = setupAuthorizedMocks();
+    const candidate = "bbbbbbbb-bbbb-4ccc-9ddd-eeeeeeeeeeee";
     try {
-      const rows: Array<{
-        id: string;
-        device_id: string;
-        ggg_uuid: string | null;
-        ggg_username: string | null;
-        is_verified: boolean;
-        total_cards_uploaded: number;
-      }> = [
-        {
-          id: "league-1",
-          device_id: VALID_DEVICE_ID,
-          ggg_uuid: "ggg-uuid-123",
-          ggg_username: "TestExile",
-          is_verified: true,
-          total_cards_uploaded: 42,
-        },
-        {
-          id: "league-2",
-          device_id: VALID_DEVICE_ID,
-          ggg_uuid: "ggg-uuid-123",
-          ggg_username: "TestExile",
-          is_verified: true,
-          total_cards_uploaded: 17,
-        },
-        {
-          id: "other-device",
-          device_id: "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee",
-          ggg_uuid: "ggg-uuid-123",
-          ggg_username: "TestExile",
-          is_verified: true,
-          total_cards_uploaded: 99,
-        },
-      ];
       fetchMock.onUrlContaining("api.pathofexile.com/profile", () =>
         postgrestResponse({ uuid: "ggg-uuid-123", name: "TestExile" }),
       );
-      fetchMock.onUrlContaining("community_uploads", (input, init) => {
-        const url = new URL(String(input));
-        assertEquals(
-          url.searchParams.get("device_id"),
-          `eq.${VALID_DEVICE_ID}`,
-        );
-        if (init?.method === "PATCH") {
-          assertEquals(url.searchParams.get("ggg_uuid"), "eq.ggg-uuid-123");
-          const patch = JSON.parse(String(init.body));
-          assertEquals(patch, {
-            ggg_uuid: null,
-            ggg_username: null,
-            is_verified: false,
+      fetchMock.onUrlContaining(
+        supabaseUrls.rpc("resolve_community_upload_identity"),
+        (_input, init) => {
+          const body = JSON.parse(String(init?.body));
+          assertEquals(body.p_device_id, candidate);
+          assertEquals(body.p_legacy_device_id, VALID_DEVICE_ID);
+          assertEquals(body.p_ggg_uuid, "ggg-uuid-123");
+          return rpcResponse({
+            device_id: scenario.restored ? VALID_DEVICE_ID : candidate,
+            legacy_anonymous: scenario.anonymous,
           });
-          const matched = rows.filter(
-            (row) =>
-              row.device_id === VALID_DEVICE_ID &&
-              row.ggg_uuid === "ggg-uuid-123",
-          );
-          for (const row of matched) Object.assign(row, patch);
-          return postgrestResponse(matched.map(({ id }) => ({ id })));
-        }
-        assertEquals(url.searchParams.get("ggg_uuid"), "neq.ggg-uuid-123");
-        assertEquals(url.searchParams.get("limit"), "1");
-        return postgrestResponse([]);
-      });
-      const request = () =>
-        accountActionRequest({
-          action: "unlink-ggg",
-          device_id: VALID_DEVICE_ID,
-        });
-      const response = await handler(request());
-      assertEquals(response.status, 200);
-      assertEquals(await responseBody(response), {
-        success: true,
-        updated_records: 2,
-      });
-      assertEquals(
-        rows
-          .slice(0, 2)
-          .map(
-            ({
-              ggg_uuid,
-              ggg_username,
-              is_verified,
-              total_cards_uploaded,
-            }) => ({
-              ggg_uuid,
-              ggg_username,
-              is_verified,
-              total_cards_uploaded,
-            }),
-          ),
-        [
-          {
-            ggg_uuid: null,
-            ggg_username: null,
-            is_verified: false,
-            total_cards_uploaded: 42,
-          },
-          {
-            ggg_uuid: null,
-            ggg_username: null,
-            is_verified: false,
-            total_cards_uploaded: 17,
-          },
-        ],
+        },
       );
-      assertEquals(rows[2].ggg_uuid, "ggg-uuid-123");
-      assertEquals(rows[2].is_verified, true);
-      const repeated = await handler(request());
-      assertEquals(repeated.status, 200);
-      assertEquals(await responseBody(repeated), {
-        success: true,
-        updated_records: 0,
-      });
+      const response = await handler(
+        accountActionRequest({
+          action: "link-ggg",
+          device_id: candidate,
+          legacy_device_id: VALID_DEVICE_ID,
+        }),
+      );
+      assertEquals(response.status, 200);
+      const body = await responseBody<{
+        device_id: string;
+        legacy_anonymous: boolean;
+      }>(response);
+      assertEquals(
+        body.device_id,
+        scenario.restored ? VALID_DEVICE_ID : candidate,
+      );
+      assertEquals(body.legacy_anonymous, scenario.anonymous);
+    } finally {
+      fetchMock.restore();
+    }
+  });
+}
+
+quietTest(
+  "v2-upload-community-data — rejects a candidate with existing unrelated history",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    try {
+      fetchMock.onUrlContaining("api.pathofexile.com/profile", () =>
+        postgrestResponse({ uuid: "ggg-uuid-123", name: "TestExile" }),
+      );
+      fetchMock.onUrlContaining(
+        supabaseUrls.rpc("resolve_community_upload_identity"),
+        () => postgrestError("community_identity_conflict", "42501", 403),
+      );
+      assertEquals(
+        (
+          await handler(
+            accountActionRequest({
+              action: "link-ggg",
+              device_id: VALID_DEVICE_ID,
+            }),
+          )
+        ).status,
+        409,
+      );
     } finally {
       fetchMock.restore();
     }
   },
 );
 
-for (const invalid of [
-  { body: { action: "unlink-ggg", device_id: "not-a-device" }, token: "token" },
-  { body: { action: "unlink-ggg", device_id: VALID_DEVICE_ID }, token: "" },
-  { body: { action: "unlink-ggg" }, token: "token" },
+quietTest(
+  "v2-upload-community-data — rejects historical unlinking without accessing GGG or changing records",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    try {
+      fetchMock.onUrlContaining("api.pathofexile.com/profile", () => {
+        throw new Error("Unexpected GGG request");
+      });
+      fetchMock.onUrlContaining("community_uploads", () => {
+        throw new Error("Unexpected history request");
+      });
+      assertEquals(
+        (
+          await handler(
+            accountActionRequest({
+              action: "unlink-ggg",
+              device_id: VALID_DEVICE_ID,
+            }),
+          )
+        ).status,
+        400,
+      );
+    } finally {
+      fetchMock.restore();
+    }
+  },
+);
+
+for (const profile of [
+  { status: 401, body: {} },
+  { status: 200, body: { name: "missing-account-id" } },
 ]) {
   quietTest(
-    `v2-upload-community-data — rejects invalid unlink ${JSON.stringify(invalid.body)} with token length ${invalid.token.length}`,
+    "v2-upload-community-data — failed verification never falls back to an anonymous write",
     async () => {
       const fetchMock = setupAuthorizedMocks();
       try {
-        const response = await handler(
-          accountActionRequest(invalid.body, invalid.token),
+        fetchMock.onUrlContaining("poe_leagues", () =>
+          postgrestResponse({ id: VALID_LEAGUE_ID }),
         );
-        assertEquals(response.status, 400);
-        assert(
-          !fetchMock.calls.some(({ url }) => url.includes("community_uploads")),
+        fetchMock.onUrlContaining("api.pathofexile.com/profile", () =>
+          postgrestResponse(profile.body, profile.status),
+        );
+        const response = await handler(accountActionRequest(validUploadBody()));
+        assertEquals(response.status, 502);
+        assertEquals(
+          fetchMock.calls.filter((call) =>
+            call.url.includes("merge_community_upload_data"),
+          ).length,
+          0,
         );
       } finally {
         fetchMock.restore();
@@ -1157,67 +1190,34 @@ for (const invalid of [
   );
 }
 
-for (const failure of [
-  "profile",
-  "ownership",
-  "ownership-read",
-  "ownership-shape",
-  "update",
-  "update-shape",
-]) {
-  quietTest(
-    `v2-upload-community-data — unlink fails closed on ${failure} failure`,
-    async () => {
-      const fetchMock = setupAuthorizedMocks();
-      try {
-        fetchMock.onUrlContaining("api.pathofexile.com/profile", () =>
-          failure === "profile"
-            ? new Response("{}", { status: 401 })
-            : postgrestResponse({ uuid: "ggg-uuid-123", name: "TestExile" }),
-        );
-        fetchMock.onUrlContaining("community_uploads", (_input, init) => {
-          if (
-            failure === "ownership-shape" ||
-            (failure === "update-shape" && init?.method === "PATCH")
-          ) {
-            return postgrestResponse({
-              unexpected: "private database details",
-            });
-          }
-          if (init?.method === "PATCH" || failure === "ownership-read") {
-            return postgrestResponse(
-              { message: "private database details" },
-              500,
-            );
-          }
-          return postgrestResponse(
-            failure === "ownership" ? [{ id: "someone-elses-data" }] : [],
-          );
-        });
-        const response = await handler(
-          accountActionRequest({
-            action: "unlink-ggg",
-            device_id: VALID_DEVICE_ID,
-          }),
-        );
-        assertEquals(
-          response.status,
-          failure === "profile" ? 502 : failure === "ownership" ? 403 : 500,
-        );
-        assert(!(await response.text()).includes("private database details"));
-        const updates = fetchMock.calls.filter(
-          ({ init }) => init?.method === "PATCH",
-        );
-        assertEquals(
-          updates.length,
-          failure === "update" || failure === "update-shape" ? 1 : 0,
-        );
-      } finally {
-        fetchMock.restore();
-      }
-    },
-  );
-}
+quietTest(
+  "v2-upload-community-data — verified upload cannot relabel anonymous or other-account history",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    try {
+      fetchMock.onUrlContaining("poe_leagues", () =>
+        postgrestResponse({ id: VALID_LEAGUE_ID }),
+      );
+      fetchMock.onUrlContaining("api.pathofexile.com/profile", () =>
+        postgrestResponse({ uuid: "ggg-uuid-123", name: "TestExile" }),
+      );
+      fetchMock.onUrlContaining(
+        supabaseUrls.rpc("merge_community_upload_data"),
+        () => postgrestError("community_identity_conflict", "42501", 403),
+      );
+      const response = await handler(accountActionRequest(validUploadBody()));
+      assertEquals(response.status, 409);
+      assertEquals(
+        fetchMock.calls.filter((call) =>
+          call.url.includes("merge_community_upload_data"),
+        ).length,
+        1,
+      );
+    } finally {
+      fetchMock.restore();
+    }
+  },
+);
 
 // Test 21: Returns 502 when GGG API returns error
 quietTest(
@@ -1287,7 +1287,7 @@ quietTest(
 
     assertEquals(resp.status, 502);
     const body = await responseBody<{ error: string }>(resp);
-    assert(body.error.includes("uuid/name"));
+    assert(body.error.includes("verification failed"));
 
     fetchMock.restore();
   },
@@ -1477,19 +1477,19 @@ quietTest(
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// GGG UUID Merge (reformat / re-link scenario)
+// Device-scoped uploads with optional GGG verification
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Test: Merges onto existing GGG row when uploading from new device
+// Verification metadata is forwarded without looking up another device.
 quietTest(
-  "v2-upload-community-data — merges onto existing row when same ggg_uuid uploads from new device",
+  "v2-upload-community-data — keeps the supplied device identity alongside verified GGG metadata",
   async () => {
     const fetchMock = setupAuthorizedMocks();
     const testToken = createTestJwt({ sub: "test-user-id-001" });
 
     const NEW_DEVICE_ID = "aaaaaaaa-1111-2222-3333-ffffffffffff";
     const GGG_UUID = "ggg-uuid-merge-test";
-    const EXISTING_UPLOAD_ID = "existing-upload-from-old-device";
+    const UPLOAD_ID = "upload-for-supplied-device";
 
     // League lookup
     fetchMock.onUrlContaining("poe_leagues", () =>
@@ -1507,7 +1507,7 @@ quietTest(
     );
 
     setupUploadMergeMock(fetchMock, {
-      upload_id: EXISTING_UPLOAD_ID,
+      upload_id: UPLOAD_ID,
       total_cards: 15,
       upload_count: 4,
       is_verified: true,
@@ -1529,8 +1529,8 @@ quietTest(
       upload_count: number;
     }>(resp);
     assertEquals(body.success, true);
-    // Should reuse the existing upload row
-    assertEquals(body.upload_id, EXISTING_UPLOAD_ID);
+    // Return the merge result for the supplied device.
+    assertEquals(body.upload_id, UPLOAD_ID);
     // upload_count should be incremented from 3 → 4
     assertEquals(body.upload_count, 4);
 
@@ -1548,84 +1548,19 @@ quietTest(
     assertEquals(mergePayload.p_ggg_uuid, GGG_UUID);
     assertEquals(mergePayload.p_ggg_username, "MergePlayer");
     assertEquals(mergePayload.p_is_verified, true);
+    assertEquals(
+      fetchMock.calls.filter((call) => call.url.includes("/community_uploads"))
+        .length,
+      0,
+    );
 
     fetchMock.restore();
   },
 );
 
-// Test: Creates new row when no GGG match exists
+// Anonymous uploads omit GGG account metadata.
 quietTest(
-  "v2-upload-community-data — creates new row when ggg_uuid has no prior upload for league",
-  async () => {
-    const fetchMock = setupAuthorizedMocks();
-    const testToken = createTestJwt({ sub: "test-user-id-001" });
-
-    const NEW_DEVICE_ID = "aaaaaaaa-1111-2222-3333-ffffffffffff";
-    const GGG_UUID = "ggg-uuid-no-match";
-
-    // League lookup
-    fetchMock.onUrlContaining("poe_leagues", () =>
-      postgrestResponse({ id: VALID_LEAGUE_ID, game: "poe2" }),
-    );
-
-    // GGG profile verification
-    fetchMock.onUrlContaining(
-      "api.pathofexile.com/profile",
-      () =>
-        new Response(JSON.stringify({ uuid: GGG_UUID, name: "NewPlayer" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-    );
-
-    setupUploadMergeMock(fetchMock, {
-      upload_id: "new-upload-id",
-      total_cards: 15,
-      upload_count: 1,
-      is_verified: true,
-    });
-
-    const req = createMockRequest(FUNCTION_URL, {
-      method: "POST",
-      body: validUploadBody({ device_id: NEW_DEVICE_ID }),
-      bearerToken: testToken,
-      apikey: "test-anon-key",
-      headers: { "x-ggg-token": "mock-ggg-token" },
-    });
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 200);
-    const body = await responseBody<{
-      success: boolean;
-      upload_id: string;
-      upload_count: number;
-    }>(resp);
-    assertEquals(body.success, true);
-    assertEquals(body.upload_id, "new-upload-id");
-    assertEquals(body.upload_count, 1);
-
-    const mergeCalls = fetchMock.calls.filter((call) =>
-      call.url.includes(supabaseUrls.rpc("merge_community_upload_data")),
-    );
-    assertEquals(mergeCalls.length, 1);
-    const mergePayload = JSON.parse(mergeCalls[0].init?.body as string) as {
-      p_device_id: string;
-      p_ggg_uuid: string | null;
-      p_ggg_username: string | null;
-      p_is_verified: boolean;
-    };
-    assertEquals(mergePayload.p_device_id, NEW_DEVICE_ID);
-    assertEquals(mergePayload.p_ggg_uuid, GGG_UUID);
-    assertEquals(mergePayload.p_ggg_username, "NewPlayer");
-    assertEquals(mergePayload.p_is_verified, true);
-
-    fetchMock.restore();
-  },
-);
-
-// Test: Skips GGG merge lookup when upload is anonymous (no x-ggg-token)
-quietTest(
-  "v2-upload-community-data — skips ggg_uuid merge lookup for anonymous uploads",
+  "v2-upload-community-data — omits GGG metadata for anonymous uploads",
   async () => {
     const fetchMock = setupAuthorizedMocks();
     const testToken = createTestJwt({ sub: "test-user-id-001" });

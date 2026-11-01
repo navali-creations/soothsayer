@@ -93,10 +93,10 @@ test.describe("Opening-time and area sharing consent", () => {
     const panel = activeSettingsPanel(page);
     const info = panel.getByRole("note", { name: "Community data sharing" });
     await expect(info).toContainText(
-      "we store a random installation ID with your uploads",
+      "we store a random upload ID with your uploads",
     );
     await expect(info).toContainText(
-      "If you verify your data, we associate those uploads with your GGG account",
+      "If you verify your data, we associate future uploads with your GGG account",
     );
     const consent = panel.getByRole("checkbox", {
       name: "Opening Times & Areas",

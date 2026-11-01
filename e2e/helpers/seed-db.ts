@@ -646,6 +646,18 @@ async function injectCardDrop(
     ],
   );
 
+  // Record a real synthetic opening, independently of the rebuildable cards cache.
+  await dbExec(
+    page,
+    `INSERT INTO community_upload_card_counts (identity_id, game, scope, card_name, count)
+    SELECT event.identity_id, session.game, league.name, event.card_name, 1
+    FROM session_card_events event JOIN sessions session ON session.id = event.session_id
+    JOIN leagues league ON league.id = session.league_id
+    WHERE event.event_id = ? AND event.identity_id != ''
+    ON CONFLICT (identity_id, game, scope, card_name) DO UPDATE SET count = count + 1`,
+    [eventId],
+  );
+
   // 3. Insert into processed_ids so getRecentDrops() returns this card
   await dbExec(
     page,

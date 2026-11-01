@@ -28,6 +28,8 @@ const {
   mockIsConfigured,
   mockCallEdgeFunction,
   mockGetAccessToken,
+  mockGetAccountId,
+  mockNotifyAuthStatusChanged,
   mockSentryCaptureException,
   mockAppPerformanceStartFreshCapture,
   mockAppPerformanceStopCapture,
@@ -48,6 +50,8 @@ const {
   mockIsConfigured: vi.fn(),
   mockCallEdgeFunction: vi.fn(),
   mockGetAccessToken: vi.fn(),
+  mockGetAccountId: vi.fn(),
+  mockNotifyAuthStatusChanged: vi.fn(),
   mockSentryCaptureException: vi.fn(),
   mockAppPerformanceStartFreshCapture: vi.fn(),
   mockAppPerformanceStopCapture: vi.fn(),
@@ -119,6 +123,8 @@ vi.mock("~/main/modules/supabase", () =>
 vi.mock("~/main/modules/ggg-auth", () =>
   createGggAuthServiceMock({
     mockGetAccessToken,
+    mockGetAccountId,
+    mockNotifyAuthStatusChanged,
   }),
 );
 
@@ -138,9 +144,12 @@ import {
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
 import { CurrentSessionService } from "~/main/modules/current-session/CurrentSession.service";
+import { SessionsRepository } from "~/main/modules/sessions/Sessions.repository";
 import { SettingsStoreRepository } from "~/main/modules/settings-store/SettingsStore.repository";
+import { StorageService } from "~/main/modules/storage/Storage.service";
 import { EdgeFunctionError } from "~/main/modules/supabase";
 
+import { CommunityIdentityRepository } from "../CommunityIdentity.repository";
 import { CommunityUploadChannel } from "../CommunityUpload.channels";
 import { CommunityUploadRepository } from "../CommunityUpload.repository";
 import { CommunityUploadService } from "../CommunityUpload.service";
@@ -273,6 +282,7 @@ describe("community upload main-process flows", () => {
     });
     mockIsConfigured.mockReturnValue(true);
     mockGetAccessToken.mockResolvedValue(null);
+    mockGetAccountId.mockResolvedValue(null);
     mockAppPerformanceStartFreshCapture.mockResolvedValue({
       capture: null,
       isSampling: false,
@@ -333,7 +343,12 @@ describe("community upload main-process flows", () => {
   });
 
   afterEach(async () => {
-    resetSingletons(CurrentSessionService, CommunityUploadService);
+    await communityUpload.drainInFlightUploads();
+    resetSingletons(
+      CurrentSessionService,
+      CommunityUploadService,
+      StorageService,
+    );
     consoleLogSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
@@ -376,6 +391,881 @@ describe("community upload main-process flows", () => {
       .execute();
   }
 
+  describe("identity switching without duplicate contributions", () => {
+    let serverCounts: Map<string, Map<string, number>>;
+    let eventOwners: Map<string, string>;
+    let openings = 0;
+    beforeEach(() => {
+      serverCounts = new Map();
+      eventOwners = new Map();
+      mockCallEdgeFunction.mockImplementation(
+        async (
+          name: string,
+          payload: any,
+          headers?: Record<string, string>,
+        ) => {
+          if (payload.action === "link-ggg")
+            return {
+              success: true,
+              device_id: payload.device_id,
+              ggg_uuid: await mockGetAccountId(),
+              legacy_anonymous: true,
+            };
+          if (name === "upload-community-drop-events") {
+            for (const event of payload.events) {
+              expect(eventOwners.get(event.event_id) ?? payload.device_id).toBe(
+                payload.device_id,
+              );
+              eventOwners.set(event.event_id, payload.device_id);
+            }
+            return createDropEventResponse(
+              payload.events.length,
+              payload.events.length,
+            );
+          }
+          const counts =
+            serverCounts.get(payload.device_id) ?? new Map<string, number>();
+          for (const card of payload.cards)
+            counts.set(
+              card.card_name,
+              Math.max(counts.get(card.card_name) ?? 0, card.count),
+            );
+          serverCounts.set(payload.device_id, counts);
+          return {
+            ...createEdgeResponse(1),
+            is_verified: !!headers?.["X-GGG-Token"],
+          };
+        },
+      );
+    });
+    async function verify(account: string) {
+      mockGetAccountId.mockResolvedValue(account);
+      mockGetAccessToken.mockResolvedValue(`token-${account}`);
+      await communityUpload.linkGggAccount(account);
+      await communityUpload.drainInFlightUploads();
+      return (
+        await new CommunityIdentityRepository(
+          testDb.kysely,
+          testDb.db,
+        ).getActive()
+      ).id;
+    }
+    async function unlink() {
+      await communityUpload.unlinkGggAccount(() => {
+        mockGetAccountId.mockResolvedValue(null);
+        mockGetAccessToken.mockResolvedValue(null);
+      });
+      return (
+        await new CommunityIdentityRepository(
+          testDb.kysely,
+          testDb.db,
+        ).getActive()
+      ).id;
+    }
+    async function open(count = 1, stop = true) {
+      if (!currentSession.isSessionActive("poe1"))
+        await currentSession.startSession("poe1", LEAGUE);
+      for (let i = 0; i < count; i++)
+        await currentSession.addCard(
+          "poe1",
+          LEAGUE,
+          "The Doctor",
+          `identity-opening-${++openings}`,
+        );
+      if (stop)
+        await currentSession.stopSession("poe1", {
+          waitForCommunityUpload: true,
+        });
+    }
+    function total() {
+      return [...serverCounts.values()].reduce(
+        (sum, cards) => sum + [...cards.values()].reduce((a, b) => a + b, 0),
+        0,
+      );
+    }
+
+    function delayNextIdentityLink() {
+      const server = mockCallEdgeFunction.getMockImplementation()!;
+      let finishFirst!: () => void;
+      let firstStarted = false;
+      const holdFirst = new Promise<void>((resolve) => {
+        finishFirst = resolve;
+      });
+      mockCallEdgeFunction.mockImplementation(
+        async (name: string, payload: any, headers: any) => {
+          const response = await server(name, payload, headers);
+          if (payload.action === "link-ggg" && !firstStarted) {
+            firstStarted = true;
+            await holdFirst;
+          }
+          return response;
+        },
+      );
+      return {
+        release: () => finishFirst(),
+        waitUntilStarted: () =>
+          waitForCondition(() => firstStarted, "link did not start"),
+      };
+    }
+
+    it("serializes different account links and records new openings for the latest account", async () => {
+      const delayed = delayNextIdentityLink();
+      mockGetAccountId.mockResolvedValue("account-a");
+      mockGetAccessToken.mockResolvedValue("token-account-a");
+      const first = communityUpload.linkGggAccount("account-a");
+      await delayed.waitUntilStarted();
+      mockGetAccountId.mockResolvedValue("account-b");
+      mockGetAccessToken.mockResolvedValue("token-account-b");
+      const second = communityUpload.linkGggAccount("account-b");
+      expect(second).not.toBe(first);
+      expect(communityUpload.linkGggAccount("account-b")).toBe(second);
+      delayed.release();
+      await Promise.all([first, second]);
+      await communityUpload.drainInFlightUploads();
+      const identities = new CommunityIdentityRepository(
+        testDb.kysely,
+        testDb.db,
+      );
+      const active = await identities.getActive();
+      expect(active.account_id).toBe("account-b");
+      expect(await identities.getVerified("account-a")).toBeUndefined();
+      await open(1);
+      expect(serverCounts.get(active.id)?.get("The Doctor")).toBe(1);
+      expect(total()).toBe(1);
+    });
+
+    it("does not reuse a superseded same-account job after an A-B-A switch", async () => {
+      const delayed = delayNextIdentityLink();
+      mockGetAccountId.mockResolvedValue("account-a");
+      mockGetAccessToken.mockResolvedValue("token-account-a");
+      const first = communityUpload.linkGggAccount("account-a");
+      await delayed.waitUntilStarted();
+      const second = communityUpload.linkGggAccount("account-b");
+      const third = communityUpload.linkGggAccount("account-a");
+      expect(third).not.toBe(first);
+      delayed.release();
+      await Promise.all([first, second, third]);
+      await communityUpload.drainInFlightUploads();
+      expect(
+        (
+          await new CommunityIdentityRepository(
+            testDb.kysely,
+            testDb.db,
+          ).getActive()
+        ).account_id,
+      ).toBe("account-a");
+      expect(
+        mockCallEdgeFunction.mock.calls.filter(
+          ([, payload]) => payload.action === "link-ggg",
+        ),
+      ).toHaveLength(2);
+    });
+
+    it("rejects activation if the signed-in account changes without another link request", async () => {
+      const delayed = delayNextIdentityLink();
+      mockGetAccountId.mockResolvedValue("account-a");
+      mockGetAccessToken.mockResolvedValue("token-account-a");
+      const linking = communityUpload.linkGggAccount("account-a");
+      const rejected = expect(linking).rejects.toThrow("GGG sign-in changed");
+      await delayed.waitUntilStarted();
+      mockGetAccountId.mockResolvedValue("account-b");
+      delayed.release();
+      await rejected;
+      expect(
+        (
+          await new CommunityIdentityRepository(
+            testDb.kysely,
+            testDb.db,
+          ).getActive()
+        ).kind,
+      ).toBe("legacy");
+    });
+
+    it("automatically resumes proof-blocked uploads when their original account is linked", async () => {
+      const verified = await verify("account-a");
+      mockCallEdgeFunction.mockRejectedValueOnce(
+        new EdgeFunctionError(
+          "v2-upload-community-data",
+          409,
+          "proof required",
+          { code: "COMMUNITY_IDENTITY_PROOF_REQUIRED" },
+        ),
+      );
+      await open(2);
+      expect(await getOutboxRows()).toHaveLength(1);
+      await unlink();
+      expect(await verify("account-a")).toBe(verified);
+      expect(await getOutboxRows()).toEqual([]);
+      expect(await getDropEventOutboxRows()).toEqual([]);
+      expect(total()).toBe(2);
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBeUndefined();
+    });
+
+    it("does not upload unfinished session observations when an account is linked", async () => {
+      await verify("account-a");
+      await open(1, false);
+      await unlink();
+      await verify("account-a");
+      expect(serverCounts.size).toBe(0);
+      expect(await getOutboxRows()).toEqual([]);
+      await open(0);
+      expect(total()).toBe(1);
+    });
+
+    it("automatically resumes a proof-blocked context queue without replaying card counts", async () => {
+      await verify("account-a");
+      const server = mockCallEdgeFunction.getMockImplementation()!;
+      mockCallEdgeFunction.mockImplementationOnce(server);
+      mockCallEdgeFunction.mockRejectedValueOnce(
+        new EdgeFunctionError(
+          "upload-community-drop-events",
+          409,
+          "proof required",
+          {
+            code: "COMMUNITY_IDENTITY_PROOF_REQUIRED",
+          },
+        ),
+      );
+      await open(1);
+      const countRequests = edgeFunctionCallCount("v2-upload-community-data");
+      expect(await getDropEventOutboxRows()).toHaveLength(1);
+      await unlink();
+      await verify("account-a");
+      expect(await getDropEventOutboxRows()).toEqual([]);
+      // The additional request resolves the link; acknowledged card counts stay local.
+      expect(edgeFunctionCallCount("v2-upload-community-data")).toBe(
+        countRequests + 1,
+      );
+      expect(total()).toBe(1);
+      expect(eventOwners.size).toBe(1);
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBeUndefined();
+    });
+
+    it("keeps one owner's context warning after another owner's context upload succeeds", async () => {
+      const verified = await verify("account-a");
+      const server = mockCallEdgeFunction.getMockImplementation()!;
+      mockCallEdgeFunction.mockImplementationOnce(server);
+      mockCallEdgeFunction.mockRejectedValueOnce(
+        new EdgeFunctionError("upload-community-drop-events", 409, "conflict", {
+          code: "COMMUNITY_IDENTITY_CONFLICT",
+        }),
+      );
+      await open(1);
+      await unlink();
+      await verify("account-b");
+      testDb.db
+        .prepare(
+          "UPDATE community_drop_event_upload_state SET next_attempt_at = NULL",
+        )
+        .run();
+      await open(1);
+      expect(
+        (await getDropEventOutboxRows()).map((row) => row.identity_id),
+      ).toEqual([verified]);
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBe("account-mismatch");
+      expect(total()).toBe(2);
+    });
+
+    it("keeps anonymous periods anonymous, restores the verified ID, and uploads each opening once", async () => {
+      await open(2);
+      const verified = await verify("account-a");
+      await open(3);
+      const anonymous = await unlink();
+      await open(4);
+      expect(await verify("account-a")).toBe(verified);
+      await open(1);
+      expect(serverCounts.get(DEVICE_ID)?.get("The Doctor")).toBe(2);
+      expect(serverCounts.get(verified)?.get("The Doctor")).toBe(4);
+      expect(serverCounts.get(anonymous)?.get("The Doctor")).toBe(4);
+      expect(total()).toBe(10);
+      const before = mockCallEdgeFunction.mock.calls.length;
+      await communityUpload.flushPendingUploads();
+      await communityUpload.uploadOnSessionEnd("poe1", LEAGUE);
+      expect(mockCallEdgeFunction).toHaveBeenCalledTimes(before);
+      expect(eventOwners.size).toBe(10);
+      for (const [name, payload, headers] of mockCallEdgeFunction.mock.calls) {
+        if (
+          name === "v2-upload-community-data" &&
+          !payload.action &&
+          payload.device_id !== verified
+        )
+          expect(headers).toEqual({});
+      }
+    });
+
+    it("splits openings during one session at the identity switch", async () => {
+      const verified = await verify("account-a");
+      await open(2, false);
+      const anonymous = await unlink();
+      await open(1);
+      // Old verified data stays queued while signed out, never reassigned to anonymous.
+      expect(serverCounts.get(anonymous)?.get("The Doctor")).toBe(1);
+      expect(serverCounts.has(verified)).toBe(false);
+      expect(await verify("account-a")).toBe(verified);
+      await communityUpload.flushPendingUploads();
+      expect(serverCounts.get(verified)?.get("The Doctor")).toBe(2);
+      expect(total()).toBe(3);
+      expect(eventOwners.size).toBe(3);
+    });
+
+    it("retries a committed upload after a lost acknowledgement under its original identity", async () => {
+      const verified = await verify("account-a");
+      const server = mockCallEdgeFunction.getMockImplementation()!;
+      mockCallEdgeFunction.mockImplementationOnce(async (...args) => {
+        await server(...args);
+        throw new Error("acknowledgement lost");
+      });
+      await open(2);
+      expect(total()).toBe(2);
+      const anonymous = await unlink();
+      await open(1);
+      expect(total()).toBe(3);
+      expect(await verify("account-a")).toBe(verified);
+      testDb.db
+        .prepare("UPDATE community_upload_outbox SET next_attempt_at = NULL")
+        .run();
+      resetSingletons(CommunityUploadService);
+      communityUpload = CommunityUploadService.getInstance();
+      await communityUpload.flushPendingUploads();
+      expect(total()).toBe(3);
+      expect(serverCounts.get(verified)?.get("The Doctor")).toBe(2);
+      expect(serverCounts.get(anonymous)?.get("The Doctor")).toBe(1);
+      await expect(getOutboxRows()).resolves.toEqual([]);
+      expect(eventOwners.size).toBe(3);
+    });
+
+    it("never counts rebuilt historical aggregates as new openings after session deletion", async () => {
+      await open(2);
+      const first = await testDb.kysely
+        .selectFrom("sessions")
+        .select("id")
+        .where("total_count", "=", 2)
+        .executeTakeFirstOrThrow();
+      await open(3);
+      const anonymous = await unlink();
+      await new SessionsRepository(testDb.kysely).deleteSessions("poe1", [
+        first.id,
+      ]);
+      await communityUpload.flushPendingUploads();
+      expect(total()).toBe(5);
+      expect(serverCounts.has(anonymous)).toBe(false);
+      await open(1);
+      expect(serverCounts.get(anonymous)?.get("The Doctor")).toBe(1);
+      expect(total()).toBe(6);
+    });
+
+    it("continues future anonymous uploads after credentials disappear and keeps verified history paused", async () => {
+      const verified = await verify("account-a");
+      await open(2);
+      mockGetAccessToken.mockImplementationOnce(async () => {
+        mockGetAccountId.mockResolvedValue(null);
+        return null;
+      });
+      await open(1);
+      const anonymous = (
+        await new CommunityIdentityRepository(
+          testDb.kysely,
+          testDb.db,
+        ).getActive()
+      ).id;
+      expect(anonymous).not.toBe(verified);
+      await open(1);
+      expect(serverCounts.get(anonymous)?.get("The Doctor")).toBe(1);
+      expect(await communityUpload.getDropContextUploadStatus()).toMatchObject({
+        pendingEvents: 0,
+        isUploading: false,
+      });
+      expect(await verify("account-a")).toBe(verified);
+      await communityUpload.flushPendingUploads();
+      expect(total()).toBe(4);
+    });
+
+    it("invalidates renderer auth status when the local session disappears before a flush", async () => {
+      const verified = await verify("account-a");
+      await open(2);
+      mockGetAccountId.mockResolvedValue(null);
+      mockGetAccessToken.mockResolvedValue(null);
+      await communityUpload.flushPendingUploads();
+      const active = await new CommunityIdentityRepository(
+        testDb.kysely,
+        testDb.db,
+      ).getActive();
+      expect(active.kind).toBe("anonymous");
+      expect(active.id).not.toBe(verified);
+      expect(mockNotifyAuthStatusChanged).toHaveBeenCalledOnce();
+      await open(1);
+      expect(serverCounts.get(active.id)?.get("The Doctor")).toBe(1);
+      expect(total()).toBe(3);
+    });
+
+    it("resolves the original anonymous backlog when OAuth completes while sharing is off", async () => {
+      const previous = mockSettingsGet.getMockImplementation()!;
+      mockSettingsGet.mockImplementation((key: string) =>
+        key === "communityUploadsEnabled"
+          ? Promise.resolve(false)
+          : previous(key),
+      );
+      await open(2);
+      mockGetAccountId.mockResolvedValue("account-a");
+      mockGetAccessToken.mockResolvedValue("token-a");
+      await communityUpload.linkGggAccount("account-a");
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+      mockSettingsGet.mockImplementation(previous);
+      await communityUpload.flushPendingUploads();
+      expect(serverCounts.get(DEVICE_ID)?.get("The Doctor")).toBe(2);
+      expect(await getOutboxRows()).toEqual([]);
+      expect(
+        (
+          await new CommunityIdentityRepository(
+            testDb.kysely,
+            testDb.db,
+          ).getActive()
+        ).kind,
+      ).toBe("verified");
+    });
+
+    it("defers identity activation if consent is withdrawn during linking and resolves the backlog when re-enabled", async () => {
+      await open(2, false);
+      const previous = mockSettingsGet.getMockImplementation()!;
+      let consentReads = 0;
+      mockSettingsGet.mockImplementation((key: string) =>
+        key === "communityUploadsEnabled"
+          ? Promise.resolve(++consentReads === 1)
+          : previous(key),
+      );
+      await verify("account-a");
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+      const identities = new CommunityIdentityRepository(
+        testDb.kysely,
+        testDb.db,
+      );
+      expect(await identities.getActive()).toMatchObject({
+        id: DEVICE_ID,
+        kind: "legacy",
+      });
+      mockSettingsGet.mockImplementation(previous);
+      await communityUpload.flushPendingUploads();
+      expect(await identities.get(DEVICE_ID)).toMatchObject({
+        kind: "anonymous",
+      });
+      expect(serverCounts.get(DEVICE_ID)?.get("The Doctor")).toBe(2);
+      expect(await getOutboxRows()).toEqual([]);
+      await open(1);
+      expect(total()).toBe(3);
+      expect(eventOwners.size).toBe(3);
+    });
+
+    it("pauses a legacy context-only queue when proof is missing and sends future anonymous contributions", async () => {
+      await open(2);
+      await testDb.kysely
+        .insertInto("community_drop_event_outbox")
+        .values({
+          event_id: "aaaaaaaa-1111-4222-8333-000000000099",
+          session_id: "pending-event-session",
+          game: "poe1",
+          scope: LEAGUE,
+          card_name: "The Doctor",
+          location: null,
+          local_minute: 1,
+          utc_offset_minutes: 0,
+        })
+        .execute();
+      const server = mockCallEdgeFunction.getMockImplementation()!;
+      mockCallEdgeFunction.mockImplementation(
+        async (name: string, payload: any, ...args: any[]) => {
+          if (
+            name === "upload-community-drop-events" &&
+            payload.device_id === DEVICE_ID
+          )
+            throw new EdgeFunctionError(name, 409, "proof required", {
+              code: "COMMUNITY_IDENTITY_PROOF_REQUIRED",
+            });
+          return server(name, payload, ...args);
+        },
+      );
+      await communityUpload.flushPendingUploads();
+      const active = await new CommunityIdentityRepository(
+        testDb.kysely,
+        testDb.db,
+      ).getActive();
+      expect(active.kind).toBe("anonymous");
+      expect(active.id).not.toBe(DEVICE_ID);
+      expect(await communityUpload.getDropContextUploadStatus()).toMatchObject({
+        pendingEvents: 0,
+        isUploading: false,
+      });
+      await open(1);
+      testDb.db
+        .prepare(
+          "UPDATE community_drop_event_upload_state SET next_attempt_at = NULL",
+        )
+        .run();
+      await communityUpload.flushPendingUploads();
+      expect(serverCounts.get(active.id)?.get("The Doctor")).toBe(1);
+      expect(total()).toBe(3);
+      expect(await getDropEventOutboxRows()).toHaveLength(1);
+      expect(await communityUpload.getDropContextUploadStatus()).toMatchObject({
+        pendingEvents: 0,
+        isUploading: false,
+        uploadWarning: "verification-required",
+      });
+    });
+
+    it("purges never-shared observations and starts future league contributions at one", async () => {
+      const previous = mockSettingsGet.getMockImplementation()!;
+      mockSettingsGet.mockImplementation((key: string) =>
+        key === "communityUploadsEnabled"
+          ? Promise.resolve(false)
+          : previous(key),
+      );
+      await open(5);
+      const storage = StorageService.getInstance();
+      expect(await (storage as any).deleteLeagueData("poe1-settlers")).toEqual({
+        success: true,
+        freedBytes: 0,
+      });
+      mockSettingsGet.mockImplementation(previous);
+      await communityUpload.flushPendingUploads();
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+      await seedLeague(testDb.kysely, { id: "poe1-settlers", name: LEAGUE });
+      await seedSnapshot(testDb.kysely, {
+        id: "snapshot-settlers",
+        leagueId: "poe1-settlers",
+      });
+      await open(1);
+      expect(total()).toBe(1);
+      expect(serverCounts.has(DEVICE_ID)).toBe(false);
+    });
+
+    it("purges a lost-acknowledgement upload without replaying or undercounting verified openings", async () => {
+      const verified = await verify("account-a");
+      const server = mockCallEdgeFunction.getMockImplementation()!;
+      mockCallEdgeFunction.mockImplementationOnce(async (...args) => {
+        await server(...args);
+        throw new Error("acknowledgement lost");
+      });
+      await open(5);
+      expect(total()).toBe(5);
+      expect(
+        await (StorageService.getInstance() as any).deleteLeagueData(
+          "poe1-settlers",
+        ),
+      ).toMatchObject({ success: true });
+      await seedLeague(testDb.kysely, { id: "poe1-settlers", name: LEAGUE });
+      await seedSnapshot(testDb.kysely, {
+        id: "snapshot-settlers",
+        leagueId: "poe1-settlers",
+      });
+      await open(1);
+      expect(total()).toBe(6);
+      expect(lastUploadPayload().device_id).not.toBe(verified);
+      const epoch = lastUploadPayload().device_id;
+      await unlink();
+      expect(await verify("account-a")).toBe(verified);
+      await open(1);
+      expect(lastUploadPayload().device_id).toBe(epoch);
+      expect(total()).toBe(7);
+    });
+
+    it.each([
+      null,
+      {},
+      { success: false },
+      { ...createEdgeResponse(1), is_verified: true },
+    ])(
+      "retains counts without a valid acknowledgement: %j",
+      async (response) => {
+        mockCallEdgeFunction.mockResolvedValue(response);
+        await open(1);
+        expect(await getOutboxRows()).toHaveLength(1);
+        expect(await getUploadedSnapshotRows()).toEqual([]);
+      },
+    );
+
+    it("keeps different accounts on different verified IDs", async () => {
+      const accountA = await verify("account-a");
+      await open(2);
+      await unlink();
+      const accountB = await verify("account-b");
+      expect(accountB).not.toBe(accountA);
+      await open(3);
+      await unlink();
+      expect(await verify("account-a")).toBe(accountA);
+      await open(1);
+      expect(serverCounts.get(accountA)?.get("The Doctor")).toBe(3);
+      expect(serverCounts.get(accountB)?.get("The Doctor")).toBe(3);
+      expect(total()).toBe(6);
+    });
+
+    it("restores a legacy verified installation without resending its acknowledged history", async () => {
+      await open(2);
+      const server = mockCallEdgeFunction.getMockImplementation()!;
+      mockCallEdgeFunction.mockImplementation(
+        async (name: string, payload: any, ...args: any[]) => {
+          if (payload.action === "link-ggg")
+            return {
+              success: true,
+              device_id: DEVICE_ID,
+              ggg_uuid: "account-a",
+              legacy_anonymous: false,
+            };
+          return server(name, payload, ...args);
+        },
+      );
+      expect(await verify("account-a")).toBe(DEVICE_ID);
+      const before = mockCallEdgeFunction.mock.calls.length;
+      await communityUpload.flushPendingUploads();
+      expect(mockCallEdgeFunction).toHaveBeenCalledTimes(before);
+      await open(1);
+      expect(serverCounts.size).toBe(1);
+      expect(total()).toBe(3);
+    });
+
+    it("isolates a legacy verified queue when the server requires a missing GGG proof", async () => {
+      mockCallEdgeFunction.mockRejectedValueOnce(
+        new EdgeFunctionError(
+          "v2-upload-community-data",
+          409,
+          "This upload identity requires its original verification",
+          { code: "COMMUNITY_IDENTITY_PROOF_REQUIRED" },
+        ),
+      );
+      await open(2);
+      const active = await new CommunityIdentityRepository(
+        testDb.kysely,
+        testDb.db,
+      ).getActive();
+      expect(active.kind).toBe("anonymous");
+      expect(active.id).not.toBe(DEVICE_ID);
+      await open(1);
+      expect(serverCounts.get(active.id)?.get("The Doctor")).toBe(1);
+      expect(serverCounts.has(DEVICE_ID)).toBe(false);
+      expect(await communityUpload.getDropContextUploadStatus()).toMatchObject({
+        pendingEvents: 0,
+        isUploading: false,
+      });
+      expect(await getOutboxRows()).toHaveLength(1);
+    });
+
+    it("shows a durable count-upload warning without context consent and clears it after the original account uploads", async () => {
+      await new CommunityUploadRepository(testDb.kysely).setDropContextConsent(
+        false,
+      );
+      mockCallEdgeFunction.mockRejectedValueOnce(
+        new EdgeFunctionError(
+          "v2-upload-community-data",
+          409,
+          "proof required",
+          {
+            code: "COMMUNITY_IDENTITY_PROOF_REQUIRED",
+          },
+        ),
+      );
+      await open(2);
+      expect((await getOutboxRows())[0].last_error).toBe(
+        "COMMUNITY_IDENTITY_PROOF_REQUIRED",
+      );
+      await open(1);
+      expect(total()).toBe(1);
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBe("verification-required");
+      // Older builds saved the full server response seen in the user's log.
+      testDb.db
+        .prepare("UPDATE community_upload_outbox SET last_error = ?")
+        .run(
+          'Edge Function v2-upload-community-data failed (409): {"code":"COMMUNITY_IDENTITY_PROOF_REQUIRED","error":"This upload identity requires its original verification"}',
+        );
+      resetSingletons(CommunityUploadService);
+      communityUpload = CommunityUploadService.getInstance();
+      expect(await communityUpload.getDropContextUploadStatus()).toMatchObject({
+        pendingEvents: 0,
+        isUploading: false,
+        uploadWarning: "verification-required",
+      });
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        CommunityUploadChannel.DropContextUploadStatusChanged,
+        expect.objectContaining({ uploadWarning: "verification-required" }),
+      );
+      const server = mockCallEdgeFunction.getMockImplementation()!;
+      mockCallEdgeFunction.mockImplementation(
+        async (name: string, payload: any, ...args: any[]) => {
+          if (payload.action === "link-ggg")
+            return {
+              success: true,
+              device_id: DEVICE_ID,
+              ggg_uuid: "account-a",
+              legacy_anonymous: false,
+            };
+          return server(name, payload, ...args);
+        },
+      );
+      expect(await verify("account-a")).toBe(DEVICE_ID);
+      testDb.db
+        .prepare("UPDATE community_upload_outbox SET next_attempt_at = NULL")
+        .run();
+      await communityUpload.flushPendingUploads();
+      expect(total()).toBe(3);
+      expect(await getOutboxRows()).toEqual([]);
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBeUndefined();
+    });
+
+    it("warns about account conflicts without exposing the server error", async () => {
+      mockCallEdgeFunction.mockRejectedValueOnce(
+        new EdgeFunctionError(
+          "v2-upload-community-data",
+          409,
+          "private server details",
+          { code: "COMMUNITY_IDENTITY_CONFLICT" },
+        ),
+      );
+      await open(1);
+      const status = await communityUpload.getDropContextUploadStatus();
+      expect(status.uploadWarning).toBe("account-mismatch");
+      expect(JSON.stringify(status)).not.toContain("private server details");
+      expect((await getOutboxRows())[0].last_error).toBe(
+        "COMMUNITY_IDENTITY_CONFLICT",
+      );
+    });
+
+    it("warns only for pending verified contributions when a different account is linked", async () => {
+      await verify("account-a");
+      await open(1);
+      await unlink();
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBeUndefined();
+      await verify("account-a");
+      mockCallEdgeFunction.mockRejectedValueOnce(new Error("offline"));
+      await open(1);
+      await unlink();
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBe("verification-required");
+      await verify("account-b");
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBe("account-mismatch");
+      await verify("account-a");
+      testDb.db
+        .prepare("UPDATE community_upload_outbox SET next_attempt_at = NULL")
+        .run();
+      await communityUpload.flushPendingUploads();
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBeUndefined();
+      expect(total()).toBe(2);
+    });
+
+    it("warns about paused context only while context sharing is enabled", async () => {
+      await verify("account-a");
+      const server = mockCallEdgeFunction.getMockImplementation()!;
+      mockCallEdgeFunction.mockImplementationOnce(server);
+      mockCallEdgeFunction.mockRejectedValueOnce(new Error("offline"));
+      await open(1);
+      expect(await getOutboxRows()).toEqual([]);
+      expect(await getDropEventOutboxRows()).toHaveLength(1);
+      await unlink();
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBe("verification-required");
+      await new CommunityUploadRepository(testDb.kysely).setDropContextConsent(
+        false,
+      );
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBeUndefined();
+      await new CommunityUploadRepository(testDb.kysely).setDropContextConsent(
+        true,
+      );
+      await verify("account-a");
+      testDb.db
+        .prepare(
+          "UPDATE community_drop_event_upload_state SET next_attempt_at = NULL",
+        )
+        .run();
+      await communityUpload.flushPendingUploads();
+      expect(await getDropEventOutboxRows()).toEqual([]);
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBeUndefined();
+      expect(total()).toBe(1);
+    });
+
+    it("retains the server's verification requirement for a context-only backlog", async () => {
+      const server = mockCallEdgeFunction.getMockImplementation()!;
+      let rejectContext = true;
+      mockCallEdgeFunction.mockImplementation(
+        async (name: string, payload: any, ...args: any[]) => {
+          if (name === "upload-community-drop-events" && rejectContext) {
+            rejectContext = false;
+            throw new EdgeFunctionError(name, 409, "proof required", {
+              code: "COMMUNITY_IDENTITY_PROOF_REQUIRED",
+            });
+          }
+          return server(name, payload, ...args);
+        },
+      );
+      await open(1);
+      expect(await getOutboxRows()).toEqual([]);
+      expect(await getDropEventOutboxRows()).toHaveLength(1);
+      resetSingletons(CommunityUploadService);
+      communityUpload = CommunityUploadService.getInstance();
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBe("verification-required");
+      expect(
+        testDb.db
+          .prepare("SELECT last_error FROM community_drop_event_upload_state")
+          .get(),
+      ).toEqual({ last_error: "COMMUNITY_IDENTITY_PROOF_REQUIRED" });
+      await new CommunityUploadRepository(testDb.kysely).setDropContextConsent(
+        false,
+      );
+      expect(
+        (await communityUpload.getDropContextUploadStatus()).uploadWarning,
+      ).toBeUndefined();
+    });
+
+    it("does not contact community services when linking with community sharing disabled", async () => {
+      const previousGet = mockSettingsGet.getMockImplementation();
+      mockSettingsGet.mockImplementation((key: string) =>
+        key === "communityUploadsEnabled"
+          ? Promise.resolve(false)
+          : previousGet?.(key),
+      );
+      await verify("account-a");
+      await open(2);
+      await communityUpload.flushPendingUploads();
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+      expect(serverCounts.size).toBe(0);
+    });
+
+    it("does not turn anonymous queued data into verified data when verifying", async () => {
+      const server = mockCallEdgeFunction.getMockImplementation()!;
+      mockCallEdgeFunction.mockRejectedValueOnce(new Error("offline"));
+      await open(2);
+      const verified = await verify("account-a");
+      testDb.db
+        .prepare("UPDATE community_upload_outbox SET next_attempt_at = NULL")
+        .run();
+      await communityUpload.flushPendingUploads();
+      expect(serverCounts.get(DEVICE_ID)?.get("The Doctor")).toBe(2);
+      expect(serverCounts.has(verified)).toBe(false);
+      expect(total()).toBe(2);
+      expect(server).toBeTypeOf("function");
+      expect(eventOwners.size).toBe(2);
+    });
+  });
+
   it.each([null, false])(
     "sends no community requests on startup, resume, or session end without general consent (%j)",
     async (consent) => {
@@ -396,6 +1286,7 @@ describe("community upload main-process flows", () => {
       await testDb.kysely
         .insertInto("community_upload_outbox")
         .values({
+          identity_id: DEVICE_ID,
           game: "poe1",
           scope: LEAGUE,
           cards_json: JSON.stringify([{ card_name: "The Doctor", count: 2 }]),
@@ -484,13 +1375,18 @@ describe("community upload main-process flows", () => {
   );
 
   it("finishes an in-flight verified upload before unlinking and sends subsequent counts without a GGG token", async () => {
+    new CommunityIdentityRepository(testDb.kysely, testDb.db).activateVerified(
+      DEVICE_ID,
+      "account-a",
+      false,
+    );
+    mockGetAccountId.mockResolvedValue("account-a");
     mockGetAccessToken.mockResolvedValue("valid-ggg-token");
     let finishUpload!: (result: ReturnType<typeof createEdgeResponse>) => void;
     let countRequests = 0;
     mockCallEdgeFunction.mockImplementation(
       (functionName: string, payload: { action?: string }) => {
-        if (payload.action === "unlink-ggg")
-          return Promise.resolve({ success: true, updated_records: 1 });
+        if (payload.action) throw new Error("Unexpected remote account action");
         if (functionName === "upload-community-drop-events")
           return Promise.resolve(createDropEventResponse(3, 3));
         countRequests += 1;
@@ -505,13 +1401,14 @@ describe("community upload main-process flows", () => {
     await vi.waitFor(() => expect(finishUpload).toBeTypeOf("function"));
     const clearSession = vi.fn(() => {
       mockGetAccessToken.mockResolvedValue(null);
+      mockGetAccountId.mockResolvedValue(null);
     });
     const unlinking = communityUpload.unlinkGggAccount(clearSession);
     await communityUpload.linkGggAccount();
     expect(
       mockCallEdgeFunction.mock.calls.some(([, payload]) => payload.action),
     ).toBe(false);
-    finishUpload(createEdgeResponse(1));
+    finishUpload({ ...createEdgeResponse(1), is_verified: true });
     await unlinking;
     await ending;
     expect(clearSession).toHaveBeenCalledOnce();
@@ -528,6 +1425,12 @@ describe("community upload main-process flows", () => {
   });
 
   it("discards a token captured before unlinking even if a settings read finishes later", async () => {
+    new CommunityIdentityRepository(testDb.kysely, testDb.db).activateVerified(
+      DEVICE_ID,
+      "account-a",
+      false,
+    );
+    mockGetAccountId.mockResolvedValue("account-a");
     const previousGet = mockSettingsGet.getMockImplementation();
     let finishSettingsRead!: (enabled: boolean) => void;
     mockGetAccessToken.mockImplementationOnce(async () => {
@@ -539,15 +1442,12 @@ describe("community upload main-process flows", () => {
       );
       return "old-ggg-token";
     });
-    mockCallEdgeFunction.mockImplementation(
-      (name: string, payload: { action?: string }) =>
-        Promise.resolve(
-          payload.action === "unlink-ggg"
-            ? { success: true, updated_records: 1 }
-            : name === "upload-community-drop-events"
-              ? createDropEventResponse(3, 3)
-              : createEdgeResponse(1),
-        ),
+    mockCallEdgeFunction.mockImplementation((name: string) =>
+      Promise.resolve(
+        name === "upload-community-drop-events"
+          ? createDropEventResponse(3, 3)
+          : createEdgeResponse(1),
+      ),
     );
     const ending = addThreeCardsAndStop({ waitForCommunityUpload: true });
     await vi.waitFor(() => expect(finishSettingsRead).toBeTypeOf("function"));
@@ -555,6 +1455,7 @@ describe("community upload main-process flows", () => {
     mockGetAccessToken.mockResolvedValue("current-ggg-token");
     await communityUpload.unlinkGggAccount(() => {
       mockGetAccessToken.mockResolvedValue(null);
+      mockGetAccountId.mockResolvedValue(null);
     });
     finishSettingsRead(true);
     await ending;
@@ -566,54 +1467,46 @@ describe("community upload main-process flows", () => {
     ).toBe(false);
     await expect(getOutboxRows()).resolves.toHaveLength(1);
     await communityUpload.flushPendingUploads();
-    const countCall = mockCallEdgeFunction.mock.calls.find(
-      ([name, payload]) =>
-        name === "v2-upload-community-data" && !payload.action,
-    );
-    expect(countCall?.[2]).toEqual({});
+    expect(
+      mockCallEdgeFunction.mock.calls.some(
+        ([name]) => name === "v2-upload-community-data",
+      ),
+    ).toBe(false);
+    await expect(getOutboxRows()).resolves.toHaveLength(1);
   });
 
-  it("keeps new counts queued during unlinking and resumes them without verification", async () => {
-    mockGetAccessToken.mockResolvedValue("valid-ggg-token");
-    let finishUnlink!: (result: {
-      success: boolean;
-      updated_records: number;
-    }) => void;
-    mockCallEdgeFunction.mockImplementation(
-      (name: string, payload: { action?: string }) => {
-        if (payload.action === "unlink-ggg")
-          return new Promise((resolve) => {
-            finishUnlink = resolve;
-          });
-        return Promise.resolve(
-          name === "upload-community-drop-events"
-            ? createDropEventResponse(3, 3)
-            : createEdgeResponse(1),
-        );
-      },
-    );
-    const clearSession = vi.fn(() => {
-      mockGetAccessToken.mockResolvedValue(null);
-    });
+  it("unlinks offline without any server request and starts empty counters", async () => {
+    await addThreeCardsAndStop({ waitForCommunityUpload: true });
+    mockCallEdgeFunction.mockClear();
+    mockIsConfigured.mockReturnValue(false);
+    mockGetAccessToken.mockRejectedValue(new Error("offline"));
+    const clearSession = vi.fn();
     const unlinking = communityUpload.unlinkGggAccount(clearSession);
     expect(communityUpload.unlinkGggAccount(clearSession)).toBe(unlinking);
-    await vi.waitFor(() => expect(finishUnlink).toBeTypeOf("function"));
-    await addThreeCardsAndStop({ waitForCommunityUpload: true });
-    await expect(getOutboxRows()).resolves.toHaveLength(1);
-    await expect(getUploadedSnapshotRows()).resolves.toEqual([]);
-    finishUnlink({ success: true, updated_records: 1 });
     await unlinking;
-    await communityUpload.flushPendingUploads();
     expect(clearSession).toHaveBeenCalledOnce();
-    const countCall = mockCallEdgeFunction.mock.calls.find(
-      ([name, payload]) =>
-        name === "v2-upload-community-data" && !payload.action,
+    expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    const identities = new CommunityIdentityRepository(
+      testDb.kysely,
+      testDb.db,
     );
-    expect(countCall?.[2]).toEqual({});
-    await expect(getOutboxRows()).resolves.toEqual([]);
+    expect((await identities.getActive()).id).not.toBe(DEVICE_ID);
+    expect(
+      await testDb.kysely
+        .selectFrom("community_upload_card_counts")
+        .select("count")
+        .where("identity_id", "=", (await identities.getActive()).id)
+        .execute(),
+    ).toEqual([]);
   });
 
   it("keeps queued counts local if consent is withdrawn while an account token is read", async () => {
+    new CommunityIdentityRepository(testDb.kysely, testDb.db).activateVerified(
+      DEVICE_ID,
+      "account-a",
+      false,
+    );
+    mockGetAccountId.mockResolvedValue("account-a");
     const settings = new SettingsStoreRepository(testDb.kysely);
     await settings.set("communityUploadsEnabled", true);
     const previousGet = mockSettingsGet.getMockImplementation();
@@ -792,10 +1685,12 @@ describe("community upload main-process flows", () => {
     expect(mockCallEdgeFunction).not.toHaveBeenCalled();
 
     const queued = await getOutboxRows();
-    expect(JSON.parse(queued[0].cards_json)).toEqual([
-      { card_name: "The Doctor", count: 1 },
-      { card_name: "Rain of Chaos", count: 1 },
-    ]);
+    expect(JSON.parse(queued[0].cards_json)).toEqual(
+      expect.arrayContaining([
+        { card_name: "The Doctor", count: 1 },
+        { card_name: "Rain of Chaos", count: 1 },
+      ]),
+    );
 
     getPowerMonitorHandler("resume")();
 
@@ -1117,6 +2012,7 @@ describe("community upload main-process flows", () => {
     await testDb.kysely
       .insertInto("community_upload_snapshot")
       .values({
+        identity_id: DEVICE_ID,
         game: "poe1",
         scope: LEAGUE,
         card_name: "The Doctor",
@@ -1163,16 +2059,14 @@ describe("community upload main-process flows", () => {
     await testDb.kysely
       .insertInto("community_upload_outbox")
       .values({
+        identity_id: DEVICE_ID,
         game: "poe1",
         scope: LEAGUE,
         cards_json: JSON.stringify([{ card_name: "The Doctor", count: 1 }]),
       })
       .execute();
 
-    await (communityUpload as any).flushPreparedPendingUpload("poe1", LEAGUE, {
-      cards: [{ card_name: "The Doctor", count: 1 }],
-      deviceId: DEVICE_ID,
-    });
+    await communityUpload.uploadOnSessionEnd("poe1", LEAGUE);
 
     expect(lastUploadPayload().events).toBeUndefined();
     await expect(getOutboxRows()).resolves.toEqual([]);
@@ -1352,14 +2246,13 @@ describe("community upload main-process flows", () => {
     );
 
     const replacement = Promise.resolve();
-    (communityUpload as any).eventFlushJobs.set(`poe1:${LEAGUE}`, replacement);
+    const key = `${DEVICE_ID}:poe1:${LEAGUE}`;
+    (communityUpload as any).eventFlushJobs.set(key, replacement);
     resolveUpload?.(createDropEventResponse());
     await Promise.all([first, second]);
 
     expect(mockCallEdgeFunction).toHaveBeenCalledTimes(1);
-    expect((communityUpload as any).eventFlushJobs.get(`poe1:${LEAGUE}`)).toBe(
-      replacement,
-    );
+    expect((communityUpload as any).eventFlushJobs.get(key)).toBe(replacement);
     (communityUpload as any).eventFlushJobs.clear();
   });
 
@@ -1456,6 +2349,7 @@ describe("community upload main-process flows", () => {
     await testDb.kysely
       .insertInto("community_upload_snapshot")
       .values({
+        identity_id: DEVICE_ID,
         game: "poe1",
         scope: LEAGUE,
         card_name: "The Doctor",

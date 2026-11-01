@@ -1,3 +1,12 @@
+import {
+  type AnyRouter,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterContextProvider,
+} from "@tanstack/react-router";
+import type { PropsWithChildren } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
@@ -6,6 +15,7 @@ import { useBoundStore } from "~/renderer/store";
 import {
   createGamePathsCategory,
   handleSelectFile,
+  parseSettingsSearch,
 } from "../Settings.utils/Settings.utils";
 import SettingsPage from "./Settings.page";
 
@@ -40,7 +50,10 @@ vi.mock("../Settings.components", () => ({
   ),
 }));
 
-vi.mock("../Settings.utils/Settings.utils", () => ({
+vi.mock("../Settings.utils/Settings.utils", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../Settings.utils/Settings.utils")
+  >()),
   createGamePathsCategory: vi.fn(() => ({
     title: "Game Configuration",
     description: "Configure paths to your Path of Exile client logs",
@@ -106,11 +119,38 @@ function setupStore(overrides: Partial<typeof mockSettings> = {}) {
   return settings;
 }
 
+let settingsRouter: AnyRouter;
+
+function SettingsRouterWrapper({ children }: PropsWithChildren) {
+  return (
+    <RouterContextProvider router={settingsRouter}>
+      {children}
+    </RouterContextProvider>
+  );
+}
+
+function renderSettingsPage() {
+  return renderWithProviders(<SettingsPage />, {
+    wrapper: SettingsRouterWrapper,
+  });
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("SettingsPage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     setupStore();
+    const root = createRootRoute();
+    const settings = createRoute({
+      getParentRoute: () => root,
+      path: "/settings",
+      validateSearch: parseSettingsSearch,
+    });
+    settingsRouter = createRouter({
+      routeTree: root.addChildren([settings]),
+      history: createMemoryHistory({ initialEntries: ["/settings"] }),
+    });
+    await settingsRouter.load();
   });
 
   afterEach(() => {
@@ -119,9 +159,19 @@ describe("SettingsPage", () => {
 
   // ── Loading state ──────────────────────────────────────────────────────
 
+  it("opens the Privacy controls directly from a deep link", async () => {
+    await settingsRouter.navigate({
+      to: "/settings",
+      search: { tab: "privacy" },
+    });
+    renderSettingsPage();
+    expect(screen.getByTestId("privacy-settings-card")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Privacy" })).toBeChecked();
+  });
+
   it("shows loading spinner when isLoading is true", () => {
     setupStore({ isLoading: true });
-    renderWithProviders(<SettingsPage />);
+    renderSettingsPage();
 
     const spinner = document.querySelector(".loading-spinner");
     expect(spinner).toBeInTheDocument();
@@ -130,7 +180,7 @@ describe("SettingsPage", () => {
 
   it("does not show loading spinner when isLoading is false", () => {
     setupStore({ isLoading: false });
-    renderWithProviders(<SettingsPage />);
+    renderSettingsPage();
 
     const spinner = document.querySelector(".loading-spinner");
     expect(spinner).not.toBeInTheDocument();
@@ -139,13 +189,13 @@ describe("SettingsPage", () => {
   // ── Page structure ─────────────────────────────────────────────────────
 
   it('renders page title "Settings" when loaded', () => {
-    renderWithProviders(<SettingsPage />);
+    renderSettingsPage();
 
     expect(screen.getByTestId("page-title")).toHaveTextContent("Settings");
   });
 
   it("renders page subtitle when loaded", () => {
-    renderWithProviders(<SettingsPage />);
+    renderSettingsPage();
 
     expect(screen.getByTestId("page-subtitle")).toHaveTextContent(
       "Configure your application preferences and game paths",
@@ -153,13 +203,13 @@ describe("SettingsPage", () => {
   });
 
   it("renders the PageContainer", () => {
-    renderWithProviders(<SettingsPage />);
+    renderSettingsPage();
 
     expect(screen.getByTestId("page-container")).toBeInTheDocument();
   });
 
   it("renders settings tabs", () => {
-    renderWithProviders(<SettingsPage />);
+    renderSettingsPage();
 
     expect(
       screen.getByRole("tablist", { name: "Settings sections" }),
@@ -182,7 +232,7 @@ describe("SettingsPage", () => {
   // ── Settings tabs ──────────────────────────────────────────────────────
 
   it("renders Game tab content by default", () => {
-    renderWithProviders(<SettingsPage />);
+    renderSettingsPage();
 
     expect(screen.getByTestId("file-path-card")).toBeInTheDocument();
     expect(screen.getByTestId("filter-settings-card")).toBeInTheDocument();
@@ -192,7 +242,7 @@ describe("SettingsPage", () => {
   });
 
   it("passes gamePaths category to FilePathSettingCard", () => {
-    renderWithProviders(<SettingsPage />);
+    renderSettingsPage();
 
     const filePathCard = screen.getByTestId("file-path-card");
     expect(filePathCard).toHaveAttribute("data-title", "Game Configuration");
@@ -200,7 +250,7 @@ describe("SettingsPage", () => {
 
   it("uses the file picker callback from the game paths category", () => {
     const settings = setupStore();
-    renderWithProviders(<SettingsPage />);
+    renderSettingsPage();
 
     const selectFile = vi.mocked(createGamePathsCategory).mock.calls[0]?.[1];
     selectFile?.("poe1ClientTxtPath", "Path of Exile 1");
@@ -213,7 +263,7 @@ describe("SettingsPage", () => {
   });
 
   it("renders App tab content", async () => {
-    const { user } = renderWithProviders(<SettingsPage />);
+    const { user } = renderSettingsPage();
     await user.click(screen.getByRole("tab", { name: "App" }));
 
     const categoryCard = screen.getByTestId("settings-category-card");
@@ -226,42 +276,42 @@ describe("SettingsPage", () => {
   });
 
   it("renders Overlay tab content", async () => {
-    const { user } = renderWithProviders(<SettingsPage />);
+    const { user } = renderSettingsPage();
     await user.click(screen.getByRole("tab", { name: "Overlay" }));
 
     expect(screen.getByTestId("overlay-settings-card")).toBeInTheDocument();
   });
 
   it("renders Audio tab content", async () => {
-    const { user } = renderWithProviders(<SettingsPage />);
+    const { user } = renderSettingsPage();
     await user.click(screen.getByRole("tab", { name: "Audio" }));
 
     expect(screen.getByTestId("audio-settings-card")).toBeInTheDocument();
   });
 
   it("renders Data & Storage tab content", async () => {
-    const { user } = renderWithProviders(<SettingsPage />);
+    const { user } = renderSettingsPage();
     await user.click(screen.getByRole("tab", { name: "Data & Storage" }));
 
     expect(screen.getByTestId("storage-settings-card")).toBeInTheDocument();
   });
 
   it("renders Privacy tab content", async () => {
-    const { user } = renderWithProviders(<SettingsPage />);
+    const { user } = renderSettingsPage();
     await user.click(screen.getByRole("tab", { name: "Privacy" }));
 
     expect(screen.getByTestId("privacy-settings-card")).toBeInTheDocument();
   });
 
   it("renders Help tab content", async () => {
-    const { user } = renderWithProviders(<SettingsPage />);
+    const { user } = renderSettingsPage();
     await user.click(screen.getByRole("tab", { name: "Help" }));
 
     expect(screen.getByTestId("app-help-card")).toBeInTheDocument();
   });
 
   it("renders Troubleshooting tab content", async () => {
-    const { user } = renderWithProviders(<SettingsPage />);
+    const { user } = renderSettingsPage();
     await user.click(screen.getByRole("tab", { name: "Troubleshooting" }));
 
     expect(
@@ -270,7 +320,7 @@ describe("SettingsPage", () => {
   });
 
   it("renders Advanced tab content", async () => {
-    const { user } = renderWithProviders(<SettingsPage />);
+    const { user } = renderSettingsPage();
     await user.click(screen.getByRole("tab", { name: "Advanced" }));
 
     expect(screen.getByTestId("danger-zone-card")).toBeInTheDocument();
@@ -280,7 +330,7 @@ describe("SettingsPage", () => {
 
   it("does not render settings cards when loading", () => {
     setupStore({ isLoading: true });
-    renderWithProviders(<SettingsPage />);
+    renderSettingsPage();
 
     expect(screen.queryByTestId("file-path-card")).not.toBeInTheDocument();
     expect(

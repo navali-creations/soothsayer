@@ -165,6 +165,13 @@ export class CurrentSessionRepository {
         last_updated = @timestamp
     `);
 
+    const incrementContribution = db.prepare(`
+      INSERT INTO community_upload_card_counts (identity_id, game, scope, card_name, count)
+      SELECT identity_id, @game, @league, @cardName, 1 FROM session_card_events
+      WHERE event_id = @eventId AND identity_id != ''
+      ON CONFLICT (identity_id, game, scope, card_name) DO UPDATE SET count = count + 1
+    `);
+
     // Bundle everything into a single synchronous transaction
     const syncTransaction = db.transaction((params: AddCardSyncParams) => {
       upsertSessionCard.run({
@@ -183,6 +190,12 @@ export class CurrentSessionRepository {
         processedId: params.processedId,
         location: params.location,
         utcOffsetMinutes: params.utcOffsetMinutes,
+      });
+      incrementContribution.run({
+        game: params.game,
+        league: params.league,
+        cardName: params.cardName,
+        eventId: params.eventId,
       });
       insertProcessedId.run({
         game: params.game,

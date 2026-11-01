@@ -65,8 +65,9 @@ const GggAccountLinkConfirmModal = ({
         </div>
 
         <p className="text-base-content/70">
-          You can unlink at any time. Community uploads still work without
-          linking.
+          Linking verifies future uploads. Previously anonymous uploads stay
+          anonymous. Unlinking starts a new anonymous ID; previously verified
+          uploads stay verified and linked to your GGG account.
         </p>
       </div>
 

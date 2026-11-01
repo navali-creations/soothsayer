@@ -784,7 +784,6 @@ describe("CurrentSessionService", () => {
       expect(mockCommunityUploadOnSessionEnd).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
-        expect.any(String),
         { flush: true },
       );
       expect(mockCommunityUploadFlushPendingUploads).not.toHaveBeenCalled();
@@ -843,7 +842,6 @@ describe("CurrentSessionService", () => {
       expect(mockCommunityUploadOnSessionEnd).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
-        expect.any(String),
         { flush: false },
       );
     });

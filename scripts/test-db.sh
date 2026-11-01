@@ -91,6 +91,9 @@ echo ""
 
 TEST_EXIT=0
 supabase_cli test db || TEST_EXIT=$?
+if [ "$TEST_EXIT" -eq 0 ]; then
+    SUPABASE_DB_CONTAINER="$LOCAL_DB_CONTAINER" node --test "$SCRIPT_DIR/../supabase/tests/concurrency/community-identities.test.mjs" || TEST_EXIT=$?
+fi
 
 echo ""
 if [ $TEST_EXIT -eq 0 ]; then

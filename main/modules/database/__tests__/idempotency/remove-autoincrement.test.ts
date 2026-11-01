@@ -11,7 +11,12 @@ describe("remove_autoincrement migration idempotency", () => {
     const db = getDb();
     createBaselineSchema(db);
     const runner = new MigrationRunner(db);
-    runner.runMigrations(migrations);
+    runner.runMigrations(
+      migrations.filter(
+        (migration) =>
+          migration.id <= migration_20260405_114200_remove_autoincrement.id,
+      ),
+    );
 
     expect(() =>
       migration_20260405_114200_remove_autoincrement.up(db),
@@ -30,7 +35,12 @@ describe("remove_autoincrement migration idempotency", () => {
     const db = getDb();
     createBaselineSchema(db);
     const runner = new MigrationRunner(db);
-    runner.runMigrations(migrations);
+    runner.runMigrations(
+      migrations.filter(
+        (migration) =>
+          migration.id <= migration_20260405_114200_remove_autoincrement.id,
+      ),
+    );
 
     db.prepare(
       "INSERT INTO leagues (id, name, game) VALUES ('l1', 'Test', 'poe1')",
@@ -49,7 +59,12 @@ describe("remove_autoincrement migration idempotency", () => {
     const db = getDb();
     createBaselineSchema(db);
     const runner = new MigrationRunner(db);
-    runner.runMigrations(migrations);
+    runner.runMigrations(
+      migrations.filter(
+        (migration) =>
+          migration.id <= migration_20260405_114200_remove_autoincrement.id,
+      ),
+    );
 
     migration_20260405_114200_remove_autoincrement.down(db);
     expect(() =>

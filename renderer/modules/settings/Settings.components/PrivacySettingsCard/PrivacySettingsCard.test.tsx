@@ -33,6 +33,7 @@ vi.mock("~/renderer/components", async (importOriginal) => {
 });
 
 vi.mock("react-icons/fi", () => ({
+  FiAlertTriangle: () => <span data-testid="icon-alert-triangle" />,
   FiInfo: () => <span data-testid="icon-info" />,
   FiExternalLink: () => <span data-testid="icon-external-link" />,
   FiShield: () => <span data-testid="icon-shield" />,
@@ -56,6 +57,7 @@ function setupStore(
     isAuthenticating?: boolean;
     isUnlinking?: boolean;
     authError?: string | null;
+    uploadWarning?: "verification-required" | "account-mismatch";
   } = {},
 ) {
   const settings = {
@@ -73,6 +75,12 @@ function setupStore(
     authenticate: mockAuthenticate,
     logout: mockLogout,
     fetchStatus: mockFetchStatus,
+    dropContextUploadStatus: {
+      pendingEvents: 0,
+      isUploading: false,
+      revision: 1,
+      uploadWarning: overrides.uploadWarning,
+    },
   };
 
   mockUseBoundStore.mockReturnValue({ settings, communityUpload } as any);
@@ -83,7 +91,18 @@ function setupStore(
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("PrivacySettingsCard", () => {
-  it("disables Unlink while waiting for the server", () => {
+  it("shows the paused-upload explanation beside the account controls", () => {
+    setupStore({ uploadWarning: "verification-required" });
+    renderWithProviders(<PrivacySettingsCard />);
+    expect(
+      screen.getByRole("alert", { name: "Community uploads paused" }),
+    ).toHaveTextContent("Link the GGG account previously used to verify");
+    expect(
+      screen.getByRole("button", { name: "Link GGG Account" }),
+    ).toBeEnabled();
+  });
+
+  it("disables Unlink while switching upload identities", () => {
     setupStore({
       gggAuthenticated: true,
       gggUsername: "TestUser",
@@ -345,14 +364,14 @@ describe("PrivacySettingsCard", () => {
     renderWithProviders(<PrivacySettingsCard />);
     const info = screen.getByRole("note", { name: "Community data sharing" });
     expect(info).toHaveTextContent(
-      "we store a random installation ID with your uploads",
+      "we store a random upload ID with your uploads",
     );
     expect(info).toHaveTextContent(
-      "If you verify your data, we associate those uploads with your GGG account",
+      "If you verify your data, we associate future uploads with your GGG account",
     );
     expect(
       screen.getByText(
-        "If you verify your data, we associate those uploads with your GGG account.",
+        "If you verify your data, we associate future uploads with your GGG account.",
       ).tagName,
     ).toBe("P");
     const restart = screen.getByText(

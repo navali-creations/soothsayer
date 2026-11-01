@@ -12,8 +12,65 @@ import {
   seedCompletedSession,
   seedSessionPrerequisites,
 } from "../helpers/seed-db";
+import { activeSettingsPanel } from "../helpers/settings";
 
 test.describe("Community card-drop context", () => {
+  test("warns about paused card uploads after reload without time-sharing consent", async ({
+    page,
+  }) => {
+    await ensurePostSetup(page);
+    await setSetting(page, "communityUploadsEnabled", true);
+    await callElectronAPI(
+      page,
+      "communityUpload",
+      "setDropContextConsent",
+      false,
+    );
+    const identityId = "e2e-paused-verified-uploads";
+    await dbExec(
+      page,
+      `INSERT INTO community_upload_identities (id, kind, account_id)
+       VALUES (?, 'verified', 'original-ggg-account')`,
+      [identityId],
+    );
+    await dbExec(
+      page,
+      `INSERT INTO community_upload_outbox
+         (identity_id, game, scope, cards_json)
+       VALUES (?, 'poe1', 'e2e-paused-league', ?)`,
+      [identityId, JSON.stringify([{ card_name: "The Scholar", count: 1 }])],
+    );
+    await page.reload();
+    const warning = page.getByRole("alert", {
+      name: "Community uploads paused",
+    });
+    await expect(warning).toContainText(
+      "Link the GGG account previously used to verify these contributions",
+    );
+    await expect(warning).toContainText(
+      "Your card history is saved on this device.",
+    );
+    await page.getByRole("link", { name: "Settings → Privacy" }).click();
+    await expect(
+      page.getByRole("tab", { name: "Privacy", exact: true }),
+    ).toBeChecked();
+    await expect(
+      activeSettingsPanel(page).getByRole("alert", {
+        name: "Community uploads paused",
+      }),
+    ).toBeVisible();
+    await dbExec(
+      page,
+      "DELETE FROM community_upload_outbox WHERE identity_id = ?",
+      [identityId],
+    );
+    await page.evaluate(async () => {
+      const store = (window as any).__zustandStore;
+      await store.getState().communityUpload.refreshDropContextUploadStatus();
+    });
+    await expect(warning).toHaveCount(0);
+  });
+
   test("shows background upload progress without blocking the app", async ({
     page,
   }) => {

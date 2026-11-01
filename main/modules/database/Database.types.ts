@@ -67,6 +67,7 @@ export interface SessionCardsTable {
 }
 
 export interface SessionCardEventsTable {
+  identity_id: ColumnType<string, string | undefined, string>;
   id: ColumnType<number, never, never>;
   session_id: string;
   card_name: string;
@@ -309,7 +310,34 @@ export interface AppMetadataTable {
   value: string;
 }
 
+export interface CommunityUploadIdentityTable {
+  parent_id: ColumnType<
+    string | null,
+    string | null | undefined,
+    string | null
+  >;
+  id: string;
+  account_id: string | null;
+  kind: "anonymous" | "verified" | "legacy";
+}
+
+export interface CommunityUploadScopeOwnersTable {
+  identity_id: string;
+  game: "poe1" | "poe2";
+  scope: string;
+  owner_id: string;
+}
+
+export interface CommunityUploadCardCountsTable {
+  identity_id: string;
+  game: string;
+  scope: string;
+  card_name: string;
+  count: number;
+}
+
 export interface CommunityUploadSnapshotTable {
+  identity_id: ColumnType<string, string | undefined, string>;
   game: string;
   scope: string;
   card_name: string;
@@ -317,6 +345,7 @@ export interface CommunityUploadSnapshotTable {
 }
 
 export interface CommunityUploadOutboxTable {
+  identity_id: ColumnType<string, string | undefined, string>;
   game: string;
   scope: string;
   cards_json: string;
@@ -328,6 +357,7 @@ export interface CommunityUploadOutboxTable {
 }
 
 export interface CommunityDropEventOutboxTable {
+  identity_id: ColumnType<string, string | undefined, string>;
   event_id: string;
   session_id: string;
   game: "poe1" | "poe2";
@@ -412,6 +442,14 @@ export interface Database {
   poe_leagues_cache: PoeLeaguesCacheTable;
   poe_leagues_cache_metadata: PoeLeaguesCacheMetadataTable;
   csv_export_snapshots: CsvExportSnapshotsTable;
+  community_upload_identities: CommunityUploadIdentityTable;
+  community_upload_scope_owners: CommunityUploadScopeOwnersTable;
+  community_upload_retired_scopes: {
+    identity_id: string;
+    game: string;
+    scope: string;
+  };
+  community_upload_card_counts: CommunityUploadCardCountsTable;
   community_upload_snapshot: CommunityUploadSnapshotTable;
   community_upload_outbox: CommunityUploadOutboxTable;
   community_drop_event_outbox: CommunityDropEventOutboxTable;

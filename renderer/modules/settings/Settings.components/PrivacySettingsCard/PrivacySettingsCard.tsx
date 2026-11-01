@@ -5,6 +5,7 @@ import { SettingsKey } from "~/main/modules/settings-store/SettingsStore.keys";
 import { Button, Link } from "~/renderer/components";
 import { useCommunityUpload, useSettings } from "~/renderer/store";
 
+import CommunityUploadWarning from "../CommunityUploadWarning/CommunityUploadWarning";
 import DropContextConsent from "../DropContextConsent/DropContextConsent";
 import GggAccountLinkConfirmModal from "../GggAccountLinkConfirmModal/GggAccountLinkConfirmModal";
 
@@ -60,6 +61,8 @@ const PrivacySettingsCard = () => {
       <section className="space-y-3">
         <p className="sr-only">Privacy and telemetry settings</p>
 
+        <CommunityUploadWarning />
+
         <div
           role="note"
           aria-label="Community data sharing"
@@ -68,12 +71,17 @@ const PrivacySettingsCard = () => {
           <FiInfo className="shrink-0 w-4 h-4" />
           <div className="space-y-1">
             <p>
-              When you share community data, we store a random installation ID
-              with your uploads.
+              When you share community data, we store a random upload ID with
+              your uploads.
             </p>
             <p>
-              If you verify your data, we associate those uploads with your GGG
+              If you verify your data, we associate future uploads with your GGG
               account.
+            </p>
+            <p>
+              Unlinking uses a new anonymous ID for future uploads and leaves
+              your sharing settings unchanged. Previously verified uploads stay
+              verified and linked to your GGG account.
             </p>
           </div>
         </div>

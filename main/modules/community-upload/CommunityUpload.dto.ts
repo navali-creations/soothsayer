@@ -22,6 +22,8 @@ export interface CommunityDropContextUploadStatus {
   pendingEvents: number;
   isUploading: boolean;
   revision: number;
+  /** Account-related blocks can affect card counts even without context consent. */
+  uploadWarning?: "verification-required" | "account-mismatch";
 }
 
 export type CommunityDropContextUploadStatusResult =

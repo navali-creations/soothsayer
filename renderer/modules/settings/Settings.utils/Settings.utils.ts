@@ -2,6 +2,27 @@ import type { UserSettingsDTO } from "~/main/modules/settings-store/SettingsStor
 
 import type { FilePathCategory, SettingsCategory } from "../Settings.types";
 
+export const SETTINGS_TABS = [
+  { id: "game", label: "Game" },
+  { id: "app", label: "App" },
+  { id: "overlay", label: "Overlay" },
+  { id: "audio", label: "Audio" },
+  { id: "storage", label: "Data & Storage" },
+  { id: "privacy", label: "Privacy" },
+  { id: "help", label: "Help" },
+  { id: "troubleshooting", label: "Troubleshooting" },
+  { id: "advanced", label: "Advanced", tone: "danger" },
+] as const;
+
+export type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
+
+export function parseSettingsSearch(search: Record<string, unknown>): {
+  tab?: SettingsTabId;
+} {
+  const selected = SETTINGS_TABS.find(({ id }) => id === search.tab);
+  return selected ? { tab: selected.id } : {};
+}
+
 export const createGamePathsCategory = (
   settings: UserSettingsDTO,
   onSelectFile: (
