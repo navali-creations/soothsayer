@@ -1,7 +1,7 @@
 {
   "name": "soothsayer",
   "productName": "Soothsayer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Path of Exile divination card tracker",
   "license": "AGPL-3.0-or-later",
