@@ -70,3 +70,4 @@ export function isInteractiveRowTarget(target: EventTarget | null): boolean {
       null
   );
 }
+export type SessionTableKind = "current" | "details";

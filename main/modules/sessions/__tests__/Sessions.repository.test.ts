@@ -15,6 +15,7 @@ import {
   seedSnapshot,
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
+import { CurrentSessionRepository } from "~/main/modules/current-session/CurrentSession.repository";
 
 import { SessionsRepository } from "../Sessions.repository";
 
@@ -30,6 +31,123 @@ describe("SessionsRepository", () => {
   afterEach(async () => {
     await testDb.close();
   });
+
+  it("uses per-session deck price overrides for sparkline costs, including zero", async () => {
+    const leagueId = await seedLeague(testDb.kysely);
+    const snapshotId = await seedSnapshot(testDb.kysely, {
+      leagueId,
+      stackedDeckChaosCost: 5,
+    });
+    for (const [id, price] of [
+      ["custom-cost", 2.25],
+      ["free-cost", 0],
+    ] as const) {
+      await seedSession(testDb.kysely, { id, leagueId, snapshotId });
+      testDb.db
+        .prepare("INSERT INTO app_metadata (key, value) VALUES (?, ?)")
+        .run(`session:stacked-deck-price:${id}`, String(price));
+    }
+    expect(await repository.getDeckCosts(["custom-cost", "free-cost"])).toEqual(
+      new Map([
+        ["custom-cost", 2.25],
+        ["free-cost", 0],
+      ]),
+    );
+  });
+
+  it("uses the saved deck price consistently in interrupted-session history and statistics", async () => {
+    const leagueId = await seedLeague(testDb.kysely);
+    const snapshotId = await seedSnapshot(testDb.kysely, {
+      leagueId,
+      stackedDeckChaosCost: 3,
+      cardPrices: [{ cardName: "Audit", chaosValue: 2.5, divineValue: 0.025 }],
+    });
+    const sessionId = await seedSession(testDb.kysely, {
+      leagueId,
+      snapshotId,
+      totalCount: 10,
+      isActive: false,
+    });
+    await seedSessionCards(testDb.kysely, sessionId, [
+      { cardName: "Audit", count: 10 },
+    ]);
+    testDb.db
+      .prepare("INSERT INTO app_metadata (key, value) VALUES (?, ?)")
+      .run(`session:stacked-deck-price:${sessionId}`, "2");
+    expect((await repository.getSessionsPage("poe1", 10, 0))[0]).toMatchObject({
+      netProfit: 5,
+      stackedDeckChaosCost: 2,
+    });
+    expect(
+      (await repository.getSessionsForExport("poe1", [sessionId]))[0],
+    ).toMatchObject({ netProfit: 5, stackedDeckChaosCost: 2 });
+    expect(await repository.getTotalNetProfit("poe1")).toMatchObject({
+      totalProfit: 5,
+      avgDeckCost: 2,
+    });
+    expect(await repository.getMostProfitableSession("poe1")).toMatchObject({
+      profit: 5,
+    });
+    expect(await repository.getWinRate("poe1")).toMatchObject({ winRate: 1 });
+    expect((await repository.getDeckCosts([sessionId])).get(sessionId)).toBe(2);
+    await seedSessionSummary(testDb.kysely, {
+      sessionId,
+      totalDecksOpened: 10,
+      stackedDeckChaosCost: 2,
+      netProfit: 5,
+    });
+    expect(await repository.getTotalNetProfit("poe1")).toMatchObject({
+      totalProfit: 5,
+      avgDeckCost: 2,
+    });
+  });
+
+  it.each([
+    ["0", 0],
+    ["2.25", 2.25],
+    ["999", 999],
+    ["1e-2", 0.01],
+    ["invalid", null],
+    ["", null],
+    ["null", null],
+    ["true", null],
+    ["[]", null],
+    ['"2"', null],
+    ["-1", null],
+    ["1000", null],
+    ["Infinity", null],
+    ["1e999", null],
+  ])(
+    "parses persisted price %s consistently for live and historical sessions",
+    async (raw, expected) => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const snapshotId = await seedSnapshot(testDb.kysely, {
+        leagueId,
+        stackedDeckChaosCost: 5,
+      });
+      const sessionId = await seedSession(testDb.kysely, {
+        leagueId,
+        snapshotId,
+      });
+      const save = testDb.db.prepare(
+        "INSERT INTO app_metadata (key, value) VALUES (?, ?)",
+      );
+      save.run(`session:stacked-deck-price:${sessionId}`, raw);
+      save.run("current-session:stacked-deck-price:poe1", raw);
+      save.run("current-session:hide-below-chaos:poe1", raw);
+      const live = new CurrentSessionRepository(testDb.kysely);
+      expect(live.getStackedDeckPriceOverride(testDb.db, "poe1")).toBe(
+        expected,
+      );
+      expect(live.getCardPriceThreshold(testDb.db, "poe1")).toBe(expected ?? 0);
+      expect(
+        (await repository.getSessionById(sessionId))?.stackedDeckPriceOverride,
+      ).toBe(expected);
+      expect((await repository.getDeckCosts([sessionId])).get(sessionId)).toBe(
+        expected ?? 5,
+      );
+    },
+  );
 
   describe("empty-input fast paths", () => {
     it("returns no export sessions for an empty selection", async () => {
@@ -3231,9 +3349,17 @@ describe("SessionsRepository", () => {
         totalDecksOpened: 1,
       });
 
+      testDb.db
+        .prepare("INSERT INTO app_metadata (key, value) VALUES (?, ?)")
+        .run(`session:stacked-deck-price:${sessionId}`, "2.25");
       const result = await repository.deleteSessions("poe1", [sessionId]);
 
       expect(result).toEqual({ success: true, deletedCount: 1 });
+      expect(
+        testDb.db
+          .prepare("SELECT value FROM app_metadata WHERE key = ?")
+          .get(`session:stacked-deck-price:${sessionId}`),
+      ).toBeUndefined();
       await expect(
         testDb.kysely
           .selectFrom("sessions")

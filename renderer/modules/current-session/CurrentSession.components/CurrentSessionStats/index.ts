@@ -3,4 +3,3 @@ export { default as CurrentSessionNetProfitStat } from "./CurrentSessionNetProfi
 export { default as CurrentSessionOpenedDecksStat } from "./CurrentSessionOpenedDecksStat/CurrentSessionOpenedDecksStat";
 export { default as CurrentSessionStats } from "./CurrentSessionStats";
 export { default as CurrentSessionTotalValueStat } from "./CurrentSessionTotalValueStat/CurrentSessionTotalValueStat";
-export { default as CurrentSessionUniqueCardsStat } from "./CurrentSessionUniqueCardsStat/CurrentSessionUniqueCardsStat";

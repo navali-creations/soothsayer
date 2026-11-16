@@ -7,9 +7,7 @@ import { useBoundStore } from "~/renderer/store";
 
 import CurrentSessionMostValuableStat from "../CurrentSessionMostValueableCardStat/CurrentSessionMostValueableCardStat";
 import CurrentSessionNetProfitStat from "../CurrentSessionNetProfitStat/CurrentSessionNetProfitStat";
-import CurrentSessionOpenedDecksStat from "../CurrentSessionOpenedDecksStat/CurrentSessionOpenedDecksStat";
 import CurrentSessionTotalValueStat from "../CurrentSessionTotalValueStat/CurrentSessionTotalValueStat";
-import CurrentSessionUniqueCardsStat from "../CurrentSessionUniqueCardsStat/CurrentSessionUniqueCardsStat";
 
 vi.mock("~/renderer/store", async () => {
   const { createStoreMock } = await import(
@@ -150,95 +148,6 @@ function setupStore(overrides: any = {}) {
   );
   return state;
 }
-
-describe("CurrentSessionOpenedDecksStat", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    cleanup();
-  });
-
-  it('renders "Stacked Decks Opened" title', () => {
-    setupStore({ session: null });
-    renderWithProviders(<CurrentSessionOpenedDecksStat />);
-
-    expect(screen.getByText("Stacked Decks Opened")).toBeInTheDocument();
-  });
-
-  it("renders 0 when session is null", () => {
-    setupStore({ session: null });
-    renderWithProviders(<CurrentSessionOpenedDecksStat />);
-
-    expect(screen.getByTestId("stat-value")).toHaveTextContent("0");
-  });
-
-  it("renders totalCount from session data", () => {
-    setupStore({
-      session: createSession({ totalCount: 42 }),
-    });
-    renderWithProviders(<CurrentSessionOpenedDecksStat />);
-
-    expect(screen.getByTestId("stat-value")).toHaveTextContent("42");
-  });
-
-  it('renders "This session" description', () => {
-    setupStore({ session: null });
-    renderWithProviders(<CurrentSessionOpenedDecksStat />);
-
-    expect(screen.getByText("This session")).toBeInTheDocument();
-  });
-});
-
-describe("CurrentSessionUniqueCardsStat", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    cleanup();
-  });
-
-  it('renders "Unique Cards" title', () => {
-    setupStore({ session: null });
-    renderWithProviders(<CurrentSessionUniqueCardsStat />);
-
-    expect(screen.getByText("Unique Cards")).toBeInTheDocument();
-  });
-
-  it("renders 0 when session is null", () => {
-    setupStore({ session: null });
-    renderWithProviders(<CurrentSessionUniqueCardsStat />);
-
-    expect(screen.getByTestId("stat-value")).toHaveTextContent("0");
-  });
-
-  it("renders the count of unique cards", () => {
-    setupStore({
-      session: createSession({
-        cards: [
-          createCard({ name: "The Doctor" }),
-          createCard({ name: "Rain of Chaos" }),
-          createCard({ name: "House of Mirrors" }),
-        ],
-      }),
-    });
-    renderWithProviders(<CurrentSessionUniqueCardsStat />);
-
-    expect(screen.getByTestId("stat-value")).toHaveTextContent("3");
-  });
-
-  it("renders 0 when session has empty cards array", () => {
-    setupStore({
-      session: createSession({ cards: [] }),
-    });
-    renderWithProviders(<CurrentSessionUniqueCardsStat />);
-
-    expect(screen.getByTestId("stat-value")).toHaveTextContent("0");
-  });
-
-  it('renders "Different cards found" description', () => {
-    setupStore({ session: null });
-    renderWithProviders(<CurrentSessionUniqueCardsStat />);
-
-    expect(screen.getByText("Different cards found")).toBeInTheDocument();
-  });
-});
 
 describe("CurrentSessionMostValuableStat", () => {
   afterEach(() => {

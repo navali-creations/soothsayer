@@ -4,6 +4,7 @@ import type {
   AggregatedTimeline,
   DetailedDivinationCardStats,
   SessionCardDelta,
+  SessionPricingUpdate,
   TimelineDelta,
 } from "../../../types/data-stores";
 import { CurrentSessionChannel } from "./CurrentSession.channels";
@@ -15,6 +16,34 @@ type SessionWithMetadata = SessionDTO & {
 };
 
 export const CurrentSessionAPI = {
+  getStackedDeckPriceOverride: (
+    game: "poe1" | "poe2",
+  ): Promise<number | null> =>
+    ipcRenderer.invoke(CurrentSessionChannel.GetStackedDeckPriceOverride, game),
+
+  setStackedDeckPriceOverride: (
+    game: "poe1" | "poe2",
+    chaosValue: number | null,
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(
+      CurrentSessionChannel.SetStackedDeckPriceOverride,
+      game,
+      chaosValue,
+    ),
+
+  getCardPriceThreshold: (game: "poe1" | "poe2"): Promise<number> =>
+    ipcRenderer.invoke(CurrentSessionChannel.GetCardPriceThreshold, game),
+
+  setCardPriceThreshold: (
+    game: "poe1" | "poe2",
+    chaosValue: number,
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(
+      CurrentSessionChannel.SetCardPriceThreshold,
+      game,
+      chaosValue,
+    ),
+
   // Start a session
   start: (
     game: "poe1" | "poe2",
@@ -93,6 +122,19 @@ export const CurrentSessionAPI = {
   },
 
   // Listen for a lightweight signal that prepared session data should be refetched
+  onPricingUpdated: (callback: (data: SessionPricingUpdate) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      data: SessionPricingUpdate,
+    ) => callback(data);
+    ipcRenderer.on(CurrentSessionChannel.PricingUpdated, listener);
+    return () =>
+      ipcRenderer.removeListener(
+        CurrentSessionChannel.PricingUpdated,
+        listener,
+      );
+  },
+
   onDataInvalidated: (callback: (data: { game: "poe1" | "poe2" }) => void) => {
     const listener = (
       _event: Electron.IpcRendererEvent,

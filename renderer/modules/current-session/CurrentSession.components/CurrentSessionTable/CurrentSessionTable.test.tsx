@@ -22,7 +22,7 @@ vi.mock("~/renderer/components", () => ({
   createCardNameColumn: vi.fn(() => ({ id: "name" })),
 }));
 
-vi.mock("./columns", () => ({
+vi.mock("./columns/columns", () => ({
   createCurrentSessionChaosValueColumn: vi.fn(() => ({ id: "chaosValue" })),
   createCurrentSessionHidePriceColumn: vi.fn(() => ({ id: "hidePrice" })),
   createCurrentSessionRatioColumn: vi.fn(() => ({ id: "ratio" })),

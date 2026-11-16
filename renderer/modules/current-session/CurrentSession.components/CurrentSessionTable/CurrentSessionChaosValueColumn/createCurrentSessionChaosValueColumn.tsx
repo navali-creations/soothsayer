@@ -11,7 +11,7 @@ const columnHelper = createColumnHelper<AppTableFeatures, CardEntry>();
 export const createCurrentSessionChaosValueColumn = () => {
   return columnHelper.accessor("count", {
     id: "chaosValue",
-    header: () => <TableHeader>Value (Each)</TableHeader>,
+    header: () => <TableHeader>Chaos Value</TableHeader>,
     cell: (info) => <CurrentSessionChaosValueCell {...info} />,
     enableSorting: true,
     sortFn: (rowA, rowB) => {

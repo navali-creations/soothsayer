@@ -202,6 +202,7 @@ import {
 } from "~/main/modules/__test-utils__/create-test-db";
 
 import { CurrentSessionChannel } from "../CurrentSession.channels";
+import { CurrentSessionRepository } from "../CurrentSession.repository";
 import { CurrentSessionService } from "../CurrentSession.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -675,6 +676,71 @@ describe("CurrentSessionService", () => {
   // ─── stopSession ───────────────────────────────────────────────────────
 
   describe("stopSession", () => {
+    it("finishes stopping before starting a replacement session and rejects a stale queued drop", async () => {
+      await service.startSession("poe1", "Settlers");
+      await service.addCard("poe1", "Settlers", "The Doctor", "original-drop");
+      const oldSessionId = service.getActiveSessionInfo("poe1")!.sessionId;
+      const cleanupStarted = Promise.withResolvers<void>();
+      const finishCleanup = Promise.withResolvers<void>();
+      vi.spyOn(
+        service as any,
+        "stopAppPerformanceDiagnosticsForSession",
+      ).mockImplementationOnce(async () => {
+        cleanupStarted.resolve();
+        await finishCleanup.promise;
+      });
+
+      const stopping = service.stopSession("poe1");
+      const staleDrop = expect(
+        service.addCard("poe1", "Settlers", "Rain of Chaos", "stale-drop"),
+      ).rejects.toThrow("Session changed before the card drop was processed");
+      await cleanupStarted.promise;
+      const starting = service.startSession("poe1", "Settlers");
+      await Promise.resolve();
+      expect(service.isSessionActive("poe1")).toBe(false);
+      finishCleanup.resolve();
+      await Promise.all([stopping, staleDrop, starting]);
+
+      const newSession = await service.getCurrentSession("poe1");
+      expect(newSession!.id).not.toBe(oldSessionId);
+      expect(newSession!.totalCount).toBe(0);
+      const oldSession = await testDb.kysely
+        .selectFrom("sessions")
+        .select(["total_count", "is_active"])
+        .where("id", "=", oldSessionId)
+        .executeTakeFirstOrThrow();
+      expect(oldSession).toEqual({ total_count: 1, is_active: 0 });
+      expect(
+        testDb.db
+          .prepare(
+            "SELECT count(*) AS count FROM session_card_events WHERE card_name = ?",
+          )
+          .get("Rain of Chaos"),
+      ).toEqual({ count: 0 });
+    });
+
+    it("does not attach a drop queued behind a replacement start to that replacement", async () => {
+      await service.startSession("poe1", "Settlers");
+      const cleanupStarted = Promise.withResolvers<void>();
+      const finishCleanup = Promise.withResolvers<void>();
+      vi.spyOn(
+        service as any,
+        "stopAppPerformanceDiagnosticsForSession",
+      ).mockImplementationOnce(async () => {
+        cleanupStarted.resolve();
+        await finishCleanup.promise;
+      });
+      const stopping = service.stopSession("poe1");
+      await cleanupStarted.promise;
+      const starting = service.startSession("poe1", "Settlers");
+      const staleDrop = expect(
+        service.addCard("poe1", "Settlers", "The Doctor", "late-drop"),
+      ).rejects.toThrow("Session changed before the card drop was processed");
+      finishCleanup.resolve();
+      await Promise.all([stopping, starting, staleDrop]);
+      expect((await service.getCurrentSession("poe1"))!.totalCount).toBe(0);
+    });
+
     it("should throw if no session is active", async () => {
       await expect(service.stopSession("poe1")).rejects.toThrow(
         "No active session for poe1",
@@ -1562,6 +1628,404 @@ describe("CurrentSessionService", () => {
 
       expect(unknownCard.price.chaosValue).toBe(0);
       expect(unknownCard.price.divineValue).toBe(0);
+    });
+  });
+
+  describe("Stacked Deck price override", () => {
+    it("rejects pricing edits once stopping has been requested", async () => {
+      await service.startSession("poe1", "Settlers");
+      const stopping = service.stopSession("poe1");
+      await expect(
+        service.setStackedDeckPriceOverride("poe1", 2),
+      ).rejects.toThrow("The session is stopping");
+      await expect(service.setCardPriceThreshold("poe1", 5)).rejects.toThrow(
+        "The session is stopping",
+      );
+      await stopping;
+      expect(service.getStackedDeckPriceOverride("poe1")).toBeNull();
+      expect(service.getCardPriceThreshold("poe1")).toBe(0);
+    });
+
+    it.each(["poe1", "poe2"] as const)(
+      "updates %s pricing with hidden and unpriced cards and invalidates overlays",
+      async (game) => {
+        if (game === "poe2")
+          await seedLeague(testDb.kysely, { game, name: "Settlers" });
+        await service.startSession(game, "Settlers");
+        await service.addCard(
+          game,
+          "Settlers",
+          "Rain of Chaos",
+          "hidden-price",
+        );
+        await service.addCard(game, "Settlers", "Unpriced", "missing-price");
+        await service.updateCardPriceVisibility(
+          game,
+          "current",
+          "Rain of Chaos",
+          true,
+        );
+        mockWebContentsSend.mockClear();
+        await service.setStackedDeckPriceOverride(game, 2);
+        expect(mockWebContentsSend).toHaveBeenCalledWith(
+          CurrentSessionChannel.PricingUpdated,
+          expect.objectContaining({
+            game,
+            totals: expect.objectContaining({
+              totalValue: 0,
+              totalDeckCost: 4,
+              netProfit: -4,
+            }),
+          }),
+        );
+
+        const overlaySend = vi.fn();
+        mockGetAllWindows.mockReturnValue([
+          {
+            webContents: {
+              send: overlaySend,
+              getURL: () => "file:///overlay.html",
+            },
+          },
+        ]);
+        (service as any)[
+          game === "poe1" ? "poe1SnapshotCache" : "poe2SnapshotCache"
+        ] = null;
+        await service.setStackedDeckPriceOverride(game, 0);
+        expect(overlaySend).toHaveBeenCalledExactlyOnceWith(
+          CurrentSessionChannel.DataInvalidated,
+          { game },
+        );
+        await service.setCardPriceThreshold(game, 1);
+        const session = await service.getCurrentSession(game);
+        expect(
+          session?.cards.find((card) => card.name === "Unpriced")?.price
+            ?.hidePrice,
+        ).toBe(true);
+      },
+    );
+
+    it("rolls back session creation and avoids starting refresh when saving its price fails", async () => {
+      await service.setStackedDeckPriceOverride("poe1", 2.25);
+      testDb.db.exec(
+        "CREATE TRIGGER fail_session_price BEFORE INSERT ON app_metadata WHEN NEW.key LIKE 'session:%' BEGIN SELECT RAISE(ABORT, 'price save failed'); END",
+      );
+      await expect(service.startSession("poe1", "Settlers")).rejects.toThrow(
+        "price save failed",
+      );
+      expect(service.isSessionActive("poe1")).toBe(false);
+      expect(
+        await testDb.kysely.selectFrom("sessions").select("id").execute(),
+      ).toEqual([]);
+      expect(mockStartAutoRefresh).not.toHaveBeenCalled();
+      expect(service.getStackedDeckPriceOverride("poe1")).toBe(2.25);
+    });
+
+    it("broadcasts only totals for a deck price edit and leaves the market snapshot out of updates", async () => {
+      await service.startSession("poe1", "Settlers");
+      await service.addCard("poe1", "Settlers", "Rain of Chaos", "light-price");
+      mockWebContentsSend.mockClear();
+      await service.setStackedDeckPriceOverride("poe1", 0);
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        CurrentSessionChannel.PricingUpdated,
+        {
+          game: "poe1",
+          sessionId: service.getActiveSessionInfo("poe1")!.sessionId,
+          totals: expect.objectContaining({ totalDeckCost: 0, netProfit: 1.5 }),
+        },
+      );
+      expect(
+        mockWebContentsSend.mock.calls.some(
+          ([channel]) => channel === CurrentSessionChannel.DataUpdated,
+        ),
+      ).toBe(false);
+      await service.setCardPriceThreshold("poe1", 2);
+      const refresh = mockWebContentsSend.mock.calls.findLast(
+        ([channel]) => channel === CurrentSessionChannel.DataUpdated,
+      );
+      expect(refresh?.[1].data.priceSnapshot.cardPrices).toEqual({});
+      expect(
+        (await service.getCurrentSession("poe1"))?.priceSnapshot?.cardPrices[
+          "Rain of Chaos"
+        ].chaosValue,
+      ).toBe(1.5);
+    });
+
+    it("uses the override for existing cards and new deltas while keeping the snapshot price", async () => {
+      await service.startSession("poe1", "Settlers");
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "The Doctor",
+        "override-doctor",
+      );
+      await service.setStackedDeckPriceOverride("poe1", 2.25);
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "override-rain",
+      );
+      let session = await service.getCurrentSession("poe1");
+      expect(session?.priceSnapshot?.stackedDeckChaosCost).toBe(3);
+      expect(session?.totals).toMatchObject({
+        totalValue: 1201.5,
+        stackedDeckChaosCost: 2.25,
+        totalDeckCost: 4.5,
+        netProfit: 1197,
+      });
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        CurrentSessionChannel.CardDelta,
+        expect.objectContaining({
+          delta: expect.objectContaining({
+            updatedTotals: expect.objectContaining({
+              stackedDeckChaosCost: 2.25,
+              netProfit: 1197,
+            }),
+          }),
+        }),
+      );
+      await service.setStackedDeckPriceOverride("poe1", 0);
+      session = await service.getCurrentSession("poe1");
+      expect(session?.totals).toMatchObject({
+        totalDeckCost: 0,
+        netProfit: 1201.5,
+      });
+      await service.setStackedDeckPriceOverride("poe1", null);
+      session = await service.getCurrentSession("poe1");
+      expect(session?.totals).toMatchObject({
+        stackedDeckChaosCost: 3,
+        totalDeckCost: 6,
+        netProfit: 1195.5,
+      });
+    });
+
+    it("remembers per-game preferences, applies them to the next session and preserves its cost in history", async () => {
+      await service.setStackedDeckPriceOverride("poe1", 2.25);
+      await service.setStackedDeckPriceOverride("poe2", 0);
+      resetSingleton(CurrentSessionService);
+      service = CurrentSessionService.getInstance();
+      expect(service.getStackedDeckPriceOverride("poe1")).toBe(2.25);
+      expect(service.getStackedDeckPriceOverride("poe2")).toBe(0);
+      await service.startSession("poe1", "Settlers");
+      const sessionId = service.getActiveSessionInfo("poe1")!.sessionId;
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "The Doctor",
+        "override-history",
+      );
+      await service.stopSession("poe1");
+      await service.setStackedDeckPriceOverride("poe1", 10);
+      const summary = await testDb.kysely
+        .selectFrom("session_summaries")
+        .select(["stacked_deck_chaos_cost", "net_profit"])
+        .where("session_id", "=", sessionId)
+        .executeTakeFirstOrThrow();
+      expect(summary).toMatchObject({
+        stacked_deck_chaos_cost: 2.25,
+        net_profit: 1197.75,
+      });
+      const metadata = testDb.db
+        .prepare("SELECT value FROM app_metadata WHERE key = ?")
+        .get(`session:stacked-deck-price:${sessionId}`);
+      expect(metadata).toEqual({ value: "2.25" });
+    });
+  });
+
+  describe("card price threshold", () => {
+    it("hides a drop arriving while the threshold refresh is reading session cards", async () => {
+      await service.startSession("poe1", "Settlers");
+      await service.addCard("poe1", "Settlers", "The Doctor", "before-edit");
+      const reading = Promise.withResolvers<void>();
+      const resume = Promise.withResolvers<void>();
+      const originalRead = CurrentSessionRepository.prototype.getSessionCards;
+      const read = vi
+        .spyOn(CurrentSessionRepository.prototype, "getSessionCards")
+        .mockImplementationOnce(async function (
+          this: CurrentSessionRepository,
+          ...args
+        ) {
+          const cards = await originalRead.apply(this, args);
+          reading.resolve();
+          await resume.promise;
+          return cards;
+        });
+      const edit = service.setCardPriceThreshold("poe1", 2);
+      await reading.promise;
+      read.mockRestore();
+      const incoming = service.addCard(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "during-edit",
+      );
+      resume.resolve();
+      await Promise.all([edit, incoming]);
+      const session = await service.getCurrentSession("poe1");
+      expect(
+        session?.cards.find((card) => card.name === "Rain of Chaos")?.price
+          ?.hidePrice,
+      ).toBe(true);
+      expect(session?.totals?.totalValue).toBe(1200);
+      expect(session?.totalCount).toBe(2);
+      expect(session?.timeline?.totalDrops).toBe(2);
+    });
+
+    it("applies a saved threshold to new drops, totals, deltas and timeline without losing counts", async () => {
+      await service.setCardPriceThreshold("poe1", 2);
+      await service.startSession("poe1", "Settlers");
+      await service.getCurrentSession("poe1");
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "threshold-rain-1",
+      );
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "The Doctor",
+        "threshold-doctor",
+      );
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "threshold-rain-2",
+      );
+
+      const session = await service.getCurrentSession("poe1");
+      expect(session?.totalCount).toBe(3);
+      expect(
+        session?.cards.find((card) => card.name === "Rain of Chaos"),
+      ).toMatchObject({ count: 2, price: { hidePrice: true } });
+      expect(
+        session?.cards.find((card) => card.name === "The Doctor")?.price
+          ?.hidePrice,
+      ).toBe(false);
+      expect(session?.totals).toMatchObject({
+        totalValue: 1200,
+        totalDeckCost: 9,
+        netProfit: 1191,
+      });
+      expect(session?.timeline).toMatchObject({
+        totalChaosValue: 1200,
+        totalDrops: 3,
+      });
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        CurrentSessionChannel.CardDelta,
+        expect.objectContaining({
+          delta: expect.objectContaining({
+            cardName: "Rain of Chaos",
+            hidePrice: true,
+            recentDrop: expect.objectContaining({ rarity: 0 }),
+          }),
+        }),
+      );
+    });
+
+    it("uses individual prices with a strict, fractional threshold and preserves manual hides when cleared", async () => {
+      await service.startSession("poe1", "Settlers");
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "threshold-existing-1",
+      );
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "threshold-existing-2",
+      );
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "The Doctor",
+        "threshold-manual",
+      );
+      await service.updateCardPriceVisibility(
+        "poe1",
+        "current",
+        "The Doctor",
+        true,
+      );
+      await service.setCardPriceThreshold("poe1", 1.5);
+      let session = await service.getCurrentSession("poe1");
+      expect(session?.totals?.totalValue).toBe(3);
+      await service.setCardPriceThreshold("poe1", 1.51);
+      session = await service.getCurrentSession("poe1");
+      expect(session?.totals?.totalValue).toBe(0);
+      expect(session?.timeline?.totalChaosValue).toBe(0);
+      await service.setCardPriceThreshold("poe1", 0);
+      session = await service.getCurrentSession("poe1");
+      expect(session?.totals?.totalValue).toBe(3);
+      expect(session?.timeline?.totalChaosValue).toBe(3);
+      expect(
+        session?.cards.find((card) => card.name === "The Doctor")?.price
+          ?.hidePrice,
+      ).toBe(true);
+    });
+
+    it("allows a manual checkbox override for an automatically hidden card", async () => {
+      await service.setCardPriceThreshold("poe1", 2);
+      await service.startSession("poe1", "Settlers");
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "threshold-override-1",
+      );
+      await service.updateCardPriceVisibility(
+        "poe1",
+        "current",
+        "Rain of Chaos",
+        false,
+      );
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "threshold-override-2",
+      );
+      const session = await service.getCurrentSession("poe1");
+      expect(session?.totals?.totalValue).toBe(3);
+      expect(session?.cards[0].price?.hidePrice).toBe(false);
+    });
+
+    it("remembers thresholds per game across sessions and service restarts, and persists hidden prices in history", async () => {
+      await service.setCardPriceThreshold("poe1", 2.5);
+      await service.setCardPriceThreshold("poe2", 10);
+      await service.startSession("poe1", "Settlers");
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "threshold-history",
+      );
+      const sessionId = service.getActiveSessionInfo("poe1")!.sessionId;
+      await service.stopSession("poe1");
+      const card = await testDb.kysely
+        .selectFrom("session_cards")
+        .select("hide_price")
+        .where("session_id", "=", sessionId)
+        .executeTakeFirstOrThrow();
+      expect(card.hide_price).toBe(1);
+      resetSingleton(CurrentSessionService);
+      service = CurrentSessionService.getInstance();
+      expect(service.getCardPriceThreshold("poe1")).toBe(2.5);
+      expect(service.getCardPriceThreshold("poe2")).toBe(10);
+      await service.startSession("poe1", "Settlers");
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "threshold-next",
+      );
+      expect(
+        (await service.getCurrentSession("poe1"))?.cards[0].price?.hidePrice,
+      ).toBe(true);
     });
   });
 

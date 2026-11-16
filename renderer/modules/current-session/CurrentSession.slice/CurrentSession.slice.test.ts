@@ -119,6 +119,32 @@ describe("CurrentSessionSlice", () => {
       mockSetDeckCost.mockClear();
     });
 
+    it("hydrates a timeline even when pricing totals are unavailable", async () => {
+      const session = makeSession({
+        totals: undefined,
+        timeline: {
+          buckets: [],
+          liveEdge: [],
+          totalChaosValue: 0,
+          totalDivineValue: 0,
+          totalDrops: 0,
+          notableDrops: [],
+        },
+      });
+      electron.session.getCurrent
+        .mockResolvedValueOnce(session)
+        .mockResolvedValueOnce(null);
+      electron.session.getInfo
+        .mockResolvedValueOnce(makeSessionInfo())
+        .mockResolvedValueOnce(null);
+      await store.getState().currentSession.hydrate();
+      expect(mockSeedFromTimeline).toHaveBeenCalledWith(session.timeline);
+      expect(mockSetDeckCost).not.toHaveBeenCalled();
+      expect(
+        store.getState().currentSession.poe1Session?.timeline,
+      ).toBeUndefined();
+    });
+
     it("sets isLoading true then false on success", async () => {
       electron.session.getCurrent.mockResolvedValue(null);
       electron.session.getInfo.mockResolvedValue(null);
@@ -346,7 +372,7 @@ describe("CurrentSessionSlice", () => {
       expect(mockSetDeckCost).toHaveBeenCalledWith(7);
     });
 
-    it("does not call setDeckCost when stackedDeckChaosCost is falsy", async () => {
+    it("hydrates a zero deck cost", async () => {
       const timeline = {
         buckets: [],
         notableDrops: [],
@@ -376,7 +402,7 @@ describe("CurrentSessionSlice", () => {
       await store.getState().currentSession.hydrate();
 
       expect(mockSeedFromTimeline).toHaveBeenCalledWith(timeline);
-      expect(mockSetDeckCost).not.toHaveBeenCalled();
+      expect(mockSetDeckCost).toHaveBeenCalledWith(0);
     });
 
     it("does not sync to poeNinja when activeSession has no priceSnapshot", async () => {
@@ -422,6 +448,97 @@ describe("CurrentSessionSlice", () => {
   // ─── startSession ────────────────────────────────────────────────────
 
   describe("startSession", () => {
+    it.each(["poe1", "poe2"] as const)(
+      "retries a failed %s override before restarting after an external stop",
+      async (game) => {
+        store = createTestStore({
+          settings: {
+            selectedGame: game,
+            poe1SelectedLeague: "Settlers",
+            poe2SelectedLeague: "Standard",
+          },
+        });
+        const info = makeSessionInfo({ league: `${game}:Test` });
+        store.setState((state) => {
+          if (game === "poe1") state.currentSession.poe1SessionInfo = info;
+          else state.currentSession.poe2SessionInfo = info;
+        });
+        const stopListening = store.getState().currentSession.startListening();
+        electron.session.setStackedDeckPriceOverride.mockResolvedValueOnce({
+          success: false,
+        });
+        await store.getState().currentSession.setStackedDeckPriceOverride(2.25);
+        electron.session.onStateChanged.mock.calls[0][0]({
+          game,
+          isActive: false,
+          sessionInfo: null,
+        });
+        expect(
+          store.getState().currentSession.getIsCurrentSessionActive(),
+        ).toBe(false);
+        electron.session.getCurrent.mockResolvedValue(
+          makeSession({ id: "replacement", game }),
+        );
+        electron.session.getInfo.mockResolvedValue(info);
+        await store.getState().currentSession.startSession();
+        expect(electron.session.setStackedDeckPriceOverride.mock.calls).toEqual(
+          [
+            [game, 2.25],
+            [game, 2.25],
+          ],
+        );
+        expect(electron.session.start).toHaveBeenCalledExactlyOnceWith(
+          game,
+          game === "poe1" ? "Settlers" : "Standard",
+        );
+        expect(
+          electron.session.setStackedDeckPriceOverride.mock
+            .invocationCallOrder[1],
+        ).toBeLessThan(electron.session.start.mock.invocationCallOrder[0]);
+        expect(
+          store.getState().currentSession.stackedDeckPriceErrors[game],
+        ).toBeNull();
+        expect(
+          store.getState().currentSession.getIsCurrentSessionActive(),
+        ).toBe(true);
+        stopListening();
+      },
+    );
+
+    it("keeps a failed idle retry recoverable on the next Start attempt", async () => {
+      store.setState((state) => {
+        state.currentSession.poe1SessionInfo = makeSessionInfo();
+      });
+      const stopListening = store.getState().currentSession.startListening();
+      electron.session.setStackedDeckPriceOverride
+        .mockRejectedValueOnce(new Error("initial save failed"))
+        .mockResolvedValueOnce({ success: false });
+      await store.getState().currentSession.setStackedDeckPriceOverride(2.25);
+      electron.session.onStateChanged.mock.calls[0][0]({
+        game: "poe1",
+        isActive: false,
+        sessionInfo: null,
+      });
+      await store.getState().currentSession.startSession();
+      expect(
+        electron.session.setStackedDeckPriceOverride,
+      ).toHaveBeenCalledTimes(2);
+      expect(electron.session.start).not.toHaveBeenCalled();
+      expect(
+        store.getState().currentSession.stackedDeckPriceErrors.poe1,
+      ).toContain("Unable to save");
+      expect(store.getState().currentSession.isLoading).toBe(false);
+      await store.getState().currentSession.startSession();
+      expect(
+        electron.session.setStackedDeckPriceOverride,
+      ).toHaveBeenCalledTimes(3);
+      expect(electron.session.start).toHaveBeenCalledOnce();
+      expect(
+        store.getState().currentSession.stackedDeckPriceErrors.poe1,
+      ).toBeNull();
+      stopListening();
+    });
+
     it("calls session.start with selectedGame and league", async () => {
       store = createTestStore({
         settings: { selectedGame: "poe1", poe1SelectedLeague: "Settlers" },
@@ -755,6 +872,69 @@ describe("CurrentSessionSlice", () => {
   // ─── stopSession ─────────────────────────────────────────────────────
 
   describe("stopSession", () => {
+    it.each(["rejected", "unsuccessful"])(
+      "keeps the session and override editable when a pending price save is %s",
+      async (failure) => {
+        const session = makeSession();
+        store.setState((state) => {
+          state.currentSession.poe1Session = session;
+          state.currentSession.poe1SessionInfo = makeSessionInfo();
+        });
+        if (failure === "rejected") {
+          electron.session.setStackedDeckPriceOverride.mockRejectedValueOnce(
+            new Error("IPC failed"),
+          );
+        } else {
+          electron.session.setStackedDeckPriceOverride.mockResolvedValueOnce({
+            success: false,
+          });
+        }
+        const save = store
+          .getState()
+          .currentSession.setStackedDeckPriceOverride(2.25);
+        await store.getState().currentSession.stopSession();
+        await save;
+
+        expect(electron.session.stop).not.toHaveBeenCalled();
+        expect(
+          store.getState().currentSession.getIsCurrentSessionActive(),
+        ).toBe(true);
+        expect(
+          store.getState().currentSession.stackedDeckPriceOverrides.poe1,
+        ).toBe(2.25);
+        expect(
+          store.getState().currentSession.stackedDeckPriceErrors.poe1,
+        ).toContain("Unable to save");
+        expect(store.getState().currentSession.isLoading).toBe(false);
+
+        await store.getState().currentSession.stopSession();
+        expect(electron.session.stop).not.toHaveBeenCalled();
+        const retry = store
+          .getState()
+          .currentSession.setStackedDeckPriceOverride(2.25);
+        await store.getState().currentSession.stopSession();
+        await retry;
+        expect(electron.session.stop).toHaveBeenCalledExactlyOnceWith("poe1");
+        expect(
+          store.getState().currentSession.stackedDeckPriceErrors.poe1,
+        ).toBeNull();
+      },
+    );
+
+    it("does not start a session after an idle threshold save fails", async () => {
+      electron.session.setCardPriceThreshold.mockResolvedValueOnce({
+        success: false,
+      });
+      const save = store.getState().currentSession.setCardPriceThreshold(5);
+      await store.getState().currentSession.startSession();
+      await save;
+      expect(electron.session.start).not.toHaveBeenCalled();
+      expect(
+        store.getState().currentSession.cardPriceThresholdErrors.poe1,
+      ).toContain("Unable to save");
+      expect(store.getState().currentSession.isLoading).toBe(false);
+    });
+
     it("calls session.stop with the active game", async () => {
       store = createTestStore({
         settings: { selectedGame: "poe1" },
@@ -811,6 +991,241 @@ describe("CurrentSessionSlice", () => {
       );
       expect(store.getState().currentSession.isLoading).toBe(false);
       consoleSpy.mockRestore();
+    });
+  });
+
+  describe("Stacked Deck price override", () => {
+    it("updates background game pricing without changing the selected timeline", () => {
+      const session = makeSession({ id: "poe2-session", game: "poe2" });
+      store.setState((state) => {
+        state.currentSession.poe2Session = session;
+      });
+      const cleanup = store.getState().currentSession.startListening();
+      const callback = electron.session.onPricingUpdated.mock.calls[0][0];
+      callback({
+        game: "poe2",
+        sessionId: "poe2-session",
+        totals: {
+          ...session.totals!,
+          stackedDeckChaosCost: 0,
+          totalDeckCost: 0,
+        },
+      });
+      expect(
+        store.getState().currentSession.poe2Session?.totals
+          ?.stackedDeckChaosCost,
+      ).toBe(0);
+      expect(mockSetDeckCost).not.toHaveBeenCalled();
+      cleanup();
+    });
+
+    it("does not restore a session stopped by a timeline subscriber during a pricing update", () => {
+      const session = makeSession({ id: "stopping-session" });
+      store.setState((state) => {
+        state.currentSession.poe1Session = session;
+      });
+      const cleanup = store.getState().currentSession.startListening();
+      mockSetDeckCost.mockImplementationOnce(() => {
+        store.setState((state) => {
+          state.currentSession.poe1Session = null;
+        });
+      });
+      electron.session.onPricingUpdated.mock.calls[0][0]({
+        game: "poe1",
+        sessionId: "stopping-session",
+        totals: session.totals!,
+      });
+      expect(store.getState().currentSession.poe1Session).toBeNull();
+      cleanup();
+    });
+
+    it("applies totals-only updates without replacing rows and ignores an older session", () => {
+      const session = makeSession();
+      store.setState((state) => {
+        state.currentSession.poe1Session = session;
+      });
+      const cards = store.getState().currentSession.poe1Session!.cards;
+      store.getState().currentSession.startListening();
+      const callback = electron.session.onPricingUpdated.mock.calls[0][0];
+      const totals = {
+        totalValue: 100,
+        netProfit: 100,
+        totalDeckCost: 0,
+        stackedDeckChaosCost: 0,
+        chaosToDivineRatio: 100,
+      };
+      callback({ game: "poe1", sessionId: "older-session", totals });
+      expect(store.getState().currentSession.poe1Session?.totals).not.toEqual(
+        totals,
+      );
+      callback({ game: "poe1", sessionId: session.id!, totals });
+      expect(store.getState().currentSession.poe1Session?.totals).toEqual(
+        totals,
+      );
+      expect(store.getState().currentSession.poe1Session?.cards).toBe(cards);
+      expect(mockSetDeckCost).toHaveBeenLastCalledWith(0);
+      expect(mockSeedFromTimeline).not.toHaveBeenCalled();
+    });
+
+    it("hydrates separate saved prices for each game", async () => {
+      electron.session.getStackedDeckPriceOverride.mockImplementation(
+        async (game) => (game === "poe1" ? 2.25 : 0),
+      );
+      await store.getState().currentSession.hydrate();
+      expect(store.getState().currentSession.stackedDeckPriceOverrides).toEqual(
+        { poe1: 2.25, poe2: 0 },
+      );
+    });
+    it("saves zero and clears the override for the selected game while idle", async () => {
+      store.getState().settings.setSetting("selectedGame", "poe2");
+      await store.getState().currentSession.setStackedDeckPriceOverride(0);
+      expect(
+        electron.session.setStackedDeckPriceOverride,
+      ).toHaveBeenLastCalledWith("poe2", 0);
+      await store.getState().currentSession.setStackedDeckPriceOverride(null);
+      expect(
+        electron.session.setStackedDeckPriceOverride,
+      ).toHaveBeenLastCalledWith("poe2", null);
+      expect(store.getState().currentSession.stackedDeckPriceOverrides).toEqual(
+        { poe1: null, poe2: null },
+      );
+    });
+    it.each([-1, NaN, Infinity, 999.01, 1000])(
+      "rejects invalid price %s",
+      async (value) => {
+        await store
+          .getState()
+          .currentSession.setStackedDeckPriceOverride(value);
+        expect(
+          electron.session.setStackedDeckPriceOverride,
+        ).not.toHaveBeenCalled();
+      },
+    );
+    it("recovers from save failures", async () => {
+      electron.session.setStackedDeckPriceOverride.mockRejectedValueOnce(
+        new Error("IPC failed"),
+      );
+      await store.getState().currentSession.setStackedDeckPriceOverride(2.25);
+      expect(
+        store.getState().currentSession.stackedDeckPriceErrors.poe1,
+      ).toContain("Unable to save");
+      await store.getState().currentSession.setStackedDeckPriceOverride(null);
+      expect(
+        store.getState().currentSession.stackedDeckPriceErrors.poe1,
+      ).toBeNull();
+    });
+    it("resets the timeline deck cost to zero after a live override update", () => {
+      store.getState().currentSession.startListening();
+      const callback = electron.session.onDataUpdated.mock.calls[0][0];
+      const session = makeSession();
+      session.totals!.stackedDeckChaosCost = 0;
+      session.timeline = {
+        buckets: [],
+        liveEdge: [],
+        totalChaosValue: 0,
+        totalDivineValue: 0,
+        totalDrops: 0,
+        notableDrops: [],
+      };
+      callback({ game: "poe1", data: session });
+      expect(mockSetDeckCost).toHaveBeenCalledWith(0);
+    });
+  });
+
+  describe("card price threshold", () => {
+    it("hydrates saved thresholds even with no active session", async () => {
+      electron.session.getCardPriceThreshold.mockImplementation(async (game) =>
+        game === "poe1" ? 1.25 : 4,
+      );
+      await store.getState().currentSession.hydrate();
+      expect(store.getState().currentSession.cardPriceThresholds).toEqual({
+        poe1: 1.25,
+        poe2: 4,
+      });
+    });
+
+    it("saves the threshold for the selected game without an active session", async () => {
+      store.getState().settings.setSetting("selectedGame", "poe2");
+      await store.getState().currentSession.setCardPriceThreshold(2.5);
+      expect(electron.session.setCardPriceThreshold).toHaveBeenCalledWith(
+        "poe2",
+        2.5,
+      );
+      expect(store.getState().currentSession.cardPriceThresholds).toEqual({
+        poe1: 0,
+        poe2: 2.5,
+      });
+    });
+
+    it.each([-1, NaN, Infinity, 999.01, 1000])(
+      "ignores invalid threshold %s",
+      async (value) => {
+        await store.getState().currentSession.setCardPriceThreshold(value);
+        expect(electron.session.setCardPriceThreshold).not.toHaveBeenCalled();
+      },
+    );
+
+    it("coalesces rapid edits and keeps the game selected for each edit", async () => {
+      const first = store.getState().currentSession.setCardPriceThreshold(2);
+      const latest = store.getState().currentSession.setCardPriceThreshold(3);
+      store.getState().settings.setSetting("selectedGame", "poe2");
+      const second = store.getState().currentSession.setCardPriceThreshold(5);
+      await Promise.all([first, latest, second]);
+      expect(electron.session.setCardPriceThreshold.mock.calls).toEqual(
+        expect.arrayContaining([
+          ["poe1", 3],
+          ["poe2", 5],
+        ]),
+      );
+      expect(electron.session.setCardPriceThreshold).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps a failed save associated with its game after switching games", async () => {
+      electron.session.setCardPriceThreshold.mockRejectedValueOnce(
+        new Error("IPC failed"),
+      );
+      const save = store.getState().currentSession.setCardPriceThreshold(2);
+      store.getState().settings.setSetting("selectedGame", "poe2");
+      await save;
+      expect(
+        store.getState().currentSession.cardPriceThresholdErrors.poe1,
+      ).toContain("Unable to save");
+      expect(
+        store.getState().currentSession.cardPriceThresholdErrors.poe2,
+      ).toBeNull();
+    });
+
+    it("flushes the latest deck price before stopping the session", async () => {
+      const save = store
+        .getState()
+        .currentSession.setStackedDeckPriceOverride(2.25);
+      await store.getState().currentSession.stopSession();
+      await save;
+      expect(
+        electron.session.setStackedDeckPriceOverride,
+      ).toHaveBeenCalledExactlyOnceWith("poe1", 2.25);
+      expect(
+        electron.session.setStackedDeckPriceOverride.mock
+          .invocationCallOrder[0],
+      ).toBeLessThan(electron.session.stop.mock.invocationCallOrder[0]);
+    });
+
+    it("recovers after a save failure and clears its error on the next edit", async () => {
+      electron.session.setCardPriceThreshold.mockRejectedValueOnce(
+        new Error("IPC failed"),
+      );
+      await store.getState().currentSession.setCardPriceThreshold(2);
+      expect(
+        store.getState().currentSession.cardPriceThresholdErrors.poe1,
+      ).toContain("Unable to save");
+      await store.getState().currentSession.setCardPriceThreshold(3);
+      expect(
+        store.getState().currentSession.cardPriceThresholdErrors.poe1,
+      ).toBeNull();
+      expect(electron.session.setCardPriceThreshold).toHaveBeenLastCalledWith(
+        "poe1",
+        3,
+      );
     });
   });
 
@@ -1054,6 +1469,28 @@ describe("CurrentSessionSlice", () => {
     });
 
     describe("onDataUpdated callback", () => {
+      it("refreshes an unpriced timeline without changing its deck cost", () => {
+        const cleanup = store.getState().currentSession.startListening();
+        const session = makeSession({
+          totals: undefined,
+          timeline: {
+            buckets: [],
+            liveEdge: [],
+            totalChaosValue: 0,
+            totalDivineValue: 0,
+            totalDrops: 0,
+            notableDrops: [],
+          },
+        });
+        electron.session.onDataUpdated.mock.calls.at(-1)![0]({
+          game: "poe1",
+          data: session,
+        });
+        expect(mockSeedFromTimeline).toHaveBeenCalledWith(session.timeline);
+        expect(mockSetDeckCost).not.toHaveBeenCalled();
+        cleanup();
+      });
+
       let dataUpdatedCallback: (payload: any) => void;
 
       beforeEach(() => {
@@ -1102,7 +1539,7 @@ describe("CurrentSessionSlice", () => {
         expect(mockSetDeckCost).toHaveBeenCalledWith(5);
       });
 
-      it("does not call setDeckCost when stackedDeckChaosCost is falsy in onDataUpdated", () => {
+      it("resets deck cost to zero in onDataUpdated", () => {
         const timeline = {
           buckets: [],
           notableDrops: [],
@@ -1124,7 +1561,7 @@ describe("CurrentSessionSlice", () => {
         dataUpdatedCallback({ game: "poe1", data });
 
         expect(mockSeedFromTimeline).toHaveBeenCalledWith(timeline);
-        expect(mockSetDeckCost).not.toHaveBeenCalled();
+        expect(mockSetDeckCost).toHaveBeenCalledWith(0);
       });
 
       it("strips priceSnapshot to only timestamp, stackedDeckChaosCost, and chaosToDivineRatio in onDataUpdated", () => {
@@ -1335,6 +1772,40 @@ describe("CurrentSessionSlice", () => {
         expect(
           store.getState().currentSession.poe1Session!.cards[0].count,
         ).toBe(5);
+      });
+
+      it("keeps unpriced existing cards visible with zero values when a snapshot is present", () => {
+        store.setState((state) => {
+          const session = makeSession({
+            priceSnapshot: {
+              timestamp: "2026-11-16T00:00:00Z",
+              stackedDeckChaosCost: 3,
+              chaosToDivineRatio: 100,
+              cardPrices: {},
+            },
+          });
+          delete session.cards[0].price;
+          state.currentSession.poe1Session = session;
+        });
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 3,
+            totalCount: 51,
+            price: null,
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+        expect(
+          store.getState().currentSession.poe1Session!.cards[0].price,
+        ).toEqual({
+          chaosValue: 0,
+          divineValue: 0,
+          totalValue: 0,
+          hidePrice: false,
+        });
       });
 
       it("adds new card to session", () => {
@@ -1627,6 +2098,36 @@ describe("CurrentSessionSlice", () => {
           (c) => c.name === "House of Mirrors",
         )!;
         expect((mirror as any).divinationCard).toEqual(divCard);
+      });
+
+      it("preserves hiding for unpriced cards on both insertion and later drops", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+        for (const newCount of [1, 2]) {
+          cardDeltaCallback({
+            game: "poe1",
+            delta: {
+              cardName: "Unpriced",
+              newCount,
+              totalCount: 50 + newCount,
+              price: null,
+              hidePrice: true,
+              updatedTotals: null,
+              recentDrop: null,
+            },
+          });
+        }
+        expect(
+          store
+            .getState()
+            .currentSession.poe1Session?.cards.find(
+              (card) => card.name === "Unpriced",
+            ),
+        ).toMatchObject({
+          count: 2,
+          price: { chaosValue: 0, hidePrice: true },
+        });
       });
 
       it("adds card with hidePrice flags from delta", () => {

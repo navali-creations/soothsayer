@@ -2,6 +2,12 @@ import type BetterSqlite3 from "better-sqlite3";
 import { type Kysely, sql } from "kysely";
 
 import type { Database } from "~/main/modules/database";
+import {
+  cardPriceThresholdKey,
+  gameDeckPriceKey,
+  parseSessionChaosSetting,
+  sessionDeckPriceKey,
+} from "~/main/modules/sessions/Sessions.utils/Sessions.utils";
 
 import type { GameType, KnownRarity, Rarity } from "../../../types/data-stores";
 import type {
@@ -34,6 +40,7 @@ export interface AddCardSyncParams {
   game: GameType;
   league: string;
   processedId: string;
+  hidePrice?: boolean;
 }
 
 /**
@@ -76,7 +83,7 @@ export class CurrentSessionRepository {
     // 1. INSERT OR UPDATE session_cards (increment count)
     const upsertSessionCard = db.prepare(`
       INSERT INTO session_cards (session_id, card_name, count, first_seen_at, last_seen_at, hide_price)
-      VALUES (@sessionId, @cardName, 1, @timestamp, @timestamp, 0)
+      VALUES (@sessionId, @cardName, 1, @timestamp, @timestamp, @hidePrice)
       ON CONFLICT (session_id, card_name) DO UPDATE SET
         count = count + 1,
         last_seen_at = @timestamp
@@ -178,6 +185,7 @@ export class CurrentSessionRepository {
         sessionId: params.sessionId,
         cardName: params.cardName,
         timestamp: params.timestamp,
+        hidePrice: params.hidePrice ? 1 : 0,
       });
       updateSessionTotal.run({ sessionId: params.sessionId });
       insertCardEvent.run({
@@ -388,19 +396,29 @@ export class CurrentSessionRepository {
   // Session Operations
   // ============================================================================
 
-  async createSession(data: CreateSessionDTO): Promise<void> {
-    await this.kysely
-      .insertInto("sessions")
-      .values({
-        id: data.id,
-        game: data.game,
-        league_id: data.leagueId,
-        snapshot_id: data.snapshotId,
-        started_at: data.startedAt,
-        total_count: 0,
-        is_active: 1,
-      })
-      .execute();
+  createSession(
+    db: BetterSqlite3.Database,
+    data: CreateSessionDTO,
+    deckPriceOverride: number | null = null,
+  ): void {
+    db.transaction(() => {
+      db.prepare(`
+        INSERT INTO sessions (id, game, league_id, snapshot_id, started_at, total_count, is_active)
+        VALUES (?, ?, ?, ?, ?, 0, 1)
+      `).run(
+        data.id,
+        data.game,
+        data.leagueId,
+        data.snapshotId,
+        data.startedAt,
+      );
+      if (deckPriceOverride !== null) {
+        db.prepare("INSERT INTO app_metadata (key, value) VALUES (?, ?)").run(
+          sessionDeckPriceKey(data.id),
+          String(deckPriceOverride),
+        );
+      }
+    })();
   }
 
   async updateSession(
@@ -541,6 +559,77 @@ export class CurrentSessionRepository {
       .where("session_id", "=", sessionId)
       .where("card_name", "=", cardName)
       .execute();
+  }
+
+  getStackedDeckPriceOverride(
+    db: BetterSqlite3.Database,
+    game: GameType,
+  ): number | null {
+    const row = db
+      .prepare("SELECT value FROM app_metadata WHERE key = ?")
+      .get(gameDeckPriceKey(game)) as { value: string } | undefined;
+    return parseSessionChaosSetting(row?.value);
+  }
+
+  saveStackedDeckPriceOverride(
+    db: BetterSqlite3.Database,
+    game: GameType,
+    chaosValue: number | null,
+    sessionId: string | null,
+  ): void {
+    const keys = [gameDeckPriceKey(game)];
+    if (sessionId) keys.push(sessionDeckPriceKey(sessionId));
+    const upsert = db.prepare(
+      "INSERT INTO app_metadata (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+    );
+    const remove = db.prepare("DELETE FROM app_metadata WHERE key = ?");
+    db.transaction(() => {
+      for (const key of keys) {
+        if (chaosValue === null) remove.run(key);
+        else upsert.run(key, String(chaosValue));
+      }
+    })();
+  }
+
+  getCardPriceThreshold(db: BetterSqlite3.Database, game: GameType): number {
+    const row = db
+      .prepare("SELECT value FROM app_metadata WHERE key = ?")
+      .get(cardPriceThresholdKey(game)) as { value: string } | undefined;
+    return parseSessionChaosSetting(row?.value) ?? 0;
+  }
+
+  getSessionPricingCards(db: BetterSqlite3.Database, sessionId: string) {
+    return db
+      .prepare(
+        "SELECT card_name AS cardName, count, hide_price AS hidePrice FROM session_cards WHERE session_id = ?",
+      )
+      .all(sessionId) as Array<{
+      cardName: string;
+      count: number;
+      hidePrice: number;
+    }>;
+  }
+
+  saveCardPriceThreshold(
+    db: BetterSqlite3.Database,
+    game: GameType,
+    chaosValue: number,
+    sessionId: string | null,
+    visibilityUpdates: ReadonlyArray<{ cardName: string; hidePrice: boolean }>,
+  ): void {
+    const updateVisibility = db.prepare(
+      "UPDATE session_cards SET hide_price = ? WHERE session_id = ? AND card_name = ?",
+    );
+    const saveThreshold = db.prepare(`
+      INSERT INTO app_metadata (key, value) VALUES (?, ?)
+      ON CONFLICT (key) DO UPDATE SET value = excluded.value
+    `);
+    db.transaction(() => {
+      for (const { cardName, hidePrice } of visibilityUpdates) {
+        updateVisibility.run(hidePrice ? 1 : 0, sessionId, cardName);
+      }
+      saveThreshold.run(cardPriceThresholdKey(game), String(chaosValue));
+    })();
   }
 
   // ============================================================================

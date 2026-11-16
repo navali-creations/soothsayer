@@ -139,6 +139,29 @@ describe("community identity ownership", () => {
     expect((await identities.getActive()).id).toBe(VERIFIED);
   });
 
+  it("starts a verified league epoch after an anonymous legacy epoch without reassigning its counts", async () => {
+    CommunityIdentityRepository.purgeScope(db.db, "poe1", "Settlers");
+    await add(2);
+    const anonymousCounts = counts();
+    identities.activateVerified(ROOT, "account-a", false);
+    await add(1);
+    expect(counts()).toEqual(expect.arrayContaining(anonymousCounts));
+    const rows = await db.kysely
+      .selectFrom("community_upload_card_counts as counts")
+      .innerJoin(
+        "community_upload_identities as identity",
+        "identity.id",
+        "counts.identity_id",
+      )
+      .select(["identity.kind", "identity.account_id", "counts.count"])
+      .orderBy("counts.count")
+      .execute();
+    expect(rows).toEqual([
+      { kind: "verified", account_id: "account-a", count: 1 },
+      { kind: "anonymous", account_id: null, count: 2 },
+    ]);
+  });
+
   it("counts only league increases, and ignores all-time duplicates and decreases", async () => {
     await seedCards(db.kysely, [
       { game: "poe1", scope: "Settlers", cardName: "The Doctor", count: 4 },

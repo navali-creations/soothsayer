@@ -1,6 +1,8 @@
 // Game type
 export type GameType = "poe1" | "poe2";
 
+export const MAX_SESSION_INPUT_CHAOS = 999;
+
 /**
  * Rarity source determines which dataset drives card rarity tiers.
  * - `poe.ninja`: Price-based rarity from poe.ninja market data
@@ -70,6 +72,12 @@ export interface SessionPriceSnapshot {
 }
 
 // Aggregate totals for quick access
+export interface SessionPricingUpdate {
+  game: GameType;
+  sessionId: string;
+  totals: SessionTotals;
+}
+
 export interface SessionTotals {
   totalValue: number;
   netProfit: number;

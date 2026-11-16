@@ -42,6 +42,7 @@ const {
   mockDataStoreAddCard,
   mockGetAllTimeStats,
   mockAssertGameType,
+  mockAssertTrustedSender,
   mockAssertString,
   mockAssertBoundedString,
   mockAssertBoolean,
@@ -106,6 +107,7 @@ const {
     mockDataStoreAddCard: vi.fn(),
     mockGetAllTimeStats: vi.fn(),
     mockAssertGameType: vi.fn(),
+    mockAssertTrustedSender: vi.fn(),
     mockAssertString: vi.fn(),
     mockAssertBoundedString: vi.fn(),
     mockAssertBoolean: vi.fn(),
@@ -204,6 +206,10 @@ vi.mock("../CurrentSession.repository", () => ({
     getSessionTotalCount = mockRepoGetSessionTotalCount;
     getSessionCards = mockRepoGetSessionCards;
     updateCardPriceVisibility = mockRepoUpdateCardPriceVisibility;
+    getCardPriceThreshold = vi.fn(() => 0);
+    saveCardPriceThreshold = vi.fn();
+    getStackedDeckPriceOverride = vi.fn(() => null);
+    saveStackedDeckPriceOverride = vi.fn();
     getProcessedIds = mockRepoGetProcessedIds;
     getRecentDrops = mockRepoGetRecentDrops;
     clearRecentDrops = mockRepoClearRecentDrops;
@@ -244,6 +250,7 @@ vi.mock("~/main/utils/cleanWikiMarkup", () => ({
 vi.mock("~/main/utils/ipc-validation", () =>
   createIpcValidationMock({
     mockAssertGameType,
+    mockAssertTrustedSender,
     mockAssertString,
     mockAssertBoundedString,
     mockAssertBoolean,
@@ -375,6 +382,162 @@ describe("CurrentSessionService — IPC handlers", () => {
       expect(registeredChannels).toContain(
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
+    });
+  });
+
+  describe("Stacked Deck price override handlers", () => {
+    it.each([
+      CurrentSessionChannel.GetStackedDeckPriceOverride,
+      CurrentSessionChannel.GetCardPriceThreshold,
+    ])("rejects an invalid game when reading %s", async (channel) => {
+      const error = new MockIpcValidationError(channel, "bad game");
+      mockAssertGameType.mockImplementationOnce(() => {
+        throw error;
+      });
+      expect(
+        await getIpcHandler(mockIpcHandle, channel)(null, "invalid"),
+      ).toEqual({ success: false, error: "Validation error" });
+      expect(mockHandleValidationError).toHaveBeenCalledWith(error, channel);
+    });
+
+    it.each([
+      CurrentSessionChannel.SetCardPriceThreshold,
+      CurrentSessionChannel.SetStackedDeckPriceOverride,
+    ])("rejects untrusted writes on %s before mutation", async (channel) => {
+      mockAssertTrustedSender.mockImplementationOnce(() => {
+        throw new MockIpcValidationError(channel, "Untrusted sender");
+      });
+      const threshold = vi.spyOn(_service, "setCardPriceThreshold");
+      const price = vi.spyOn(_service, "setStackedDeckPriceOverride");
+      const handler = getIpcHandler(mockIpcHandle, channel);
+      expect(await handler({ sender: { id: 999 } }, "poe1", 2)).toMatchObject({
+        success: false,
+        error: expect.stringContaining("Untrusted sender"),
+      });
+      expect(threshold).not.toHaveBeenCalled();
+      expect(price).not.toHaveBeenCalled();
+    });
+
+    it("validates the game and returns the default price override", async () => {
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.GetStackedDeckPriceOverride,
+      );
+      expect(await handler(null, "poe1")).toBeNull();
+      expect(mockAssertGameType).toHaveBeenCalledWith(
+        "poe1",
+        CurrentSessionChannel.GetStackedDeckPriceOverride,
+      );
+    });
+    it.each([2.25, 998.99, 999, 0, null])(
+      "accepts a fractional, free or cleared price: %s",
+      async (value) => {
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          CurrentSessionChannel.SetStackedDeckPriceOverride,
+        );
+        expect(await handler(null, "poe1", value)).toEqual({ success: true });
+        expect(_service.getStackedDeckPriceOverride("poe1")).toBe(value);
+      },
+    );
+    it.each([-1, NaN, Infinity, -Infinity, 999.01, 1000, "2", undefined])(
+      "rejects invalid price %s",
+      async (value) => {
+        const setter = vi.spyOn(_service, "setStackedDeckPriceOverride");
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          CurrentSessionChannel.SetStackedDeckPriceOverride,
+        );
+        expect(await handler(null, "poe1", value)).toMatchObject({
+          success: false,
+          error: expect.stringContaining("Invalid input:"),
+        });
+        expect(setter).not.toHaveBeenCalled();
+      },
+    );
+    it("sanitizes save failures", async () => {
+      vi.spyOn(_service, "setStackedDeckPriceOverride").mockRejectedValue(
+        new Error("private path"),
+      );
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.SetStackedDeckPriceOverride,
+      );
+      expect(await handler(null, "poe1", 2)).toEqual({
+        success: false,
+        error: "Unable to update the Stacked Deck price",
+      });
+    });
+  });
+
+  describe("card price threshold handlers", () => {
+    it("returns the saved threshold after validating the game", async () => {
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.GetCardPriceThreshold,
+      );
+      expect(await handler(null, "poe1")).toBe(0);
+      expect(mockAssertGameType).toHaveBeenCalledWith(
+        "poe1",
+        CurrentSessionChannel.GetCardPriceThreshold,
+      );
+    });
+
+    it("accepts fractional thresholds when no session is active", async () => {
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.SetCardPriceThreshold,
+      );
+      expect(await handler(null, "poe1", 1.25)).toEqual({ success: true });
+      expect(_service.getCardPriceThreshold("poe1")).toBe(1.25);
+    });
+
+    it.each([-1, NaN, Infinity, -Infinity, 999.01, 1000, "2", null, undefined])(
+      "rejects an invalid threshold: %s",
+      async (value) => {
+        const setter = vi.spyOn(_service, "setCardPriceThreshold");
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          CurrentSessionChannel.SetCardPriceThreshold,
+        );
+        expect(await handler(null, "poe1", value)).toEqual({
+          success: false,
+          error: expect.stringContaining("Invalid input:"),
+        });
+        expect(setter).not.toHaveBeenCalled();
+      },
+    );
+
+    it("rejects invalid games before saving", async () => {
+      mockAssertGameType.mockImplementationOnce(() => {
+        throw new MockIpcValidationError(
+          CurrentSessionChannel.SetCardPriceThreshold,
+          "bad game",
+        );
+      });
+      const setter = vi.spyOn(_service, "setCardPriceThreshold");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.SetCardPriceThreshold,
+      );
+      expect(await handler(null, "invalid", 1)).toMatchObject({
+        success: false,
+      });
+      expect(setter).not.toHaveBeenCalled();
+    });
+
+    it("returns a safe error on save failure", async () => {
+      vi.spyOn(_service, "setCardPriceThreshold").mockRejectedValue(
+        new Error("private database path"),
+      );
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.SetCardPriceThreshold,
+      );
+      expect(await handler(null, "poe1", 1)).toEqual({
+        success: false,
+        error: "Unable to update the card price threshold",
+      });
     });
   });
 

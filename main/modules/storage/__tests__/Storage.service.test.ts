@@ -562,6 +562,36 @@ describe("StorageService", () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe("deleteLeagueData", () => {
+    it("removes only the deleted league's session-price metadata", async () => {
+      const leagueId = await seedLeague(testDb.kysely, { name: "Purged" });
+      const keptLeague = await seedLeague(testDb.kysely, { name: "Kept" });
+      const removed = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+      });
+      const kept = await seedSession(testDb.kysely, {
+        leagueId: keptLeague,
+        isActive: false,
+      });
+      const insert = testDb.db.prepare(
+        "INSERT INTO app_metadata (key, value) VALUES (?, ?)",
+      );
+      const removedKey = `session:stacked-deck-price:${removed}`;
+      const keptKey = `session:stacked-deck-price:${kept}`;
+      const preferenceKey = "current-session:stacked-deck-price:poe1";
+      for (const key of [removedKey, keptKey, preferenceKey])
+        insert.run(key, "2.25");
+      expect(
+        (await StorageService.getInstance().deleteLeagueData(leagueId)).success,
+      ).toBe(true);
+      const read = testDb.db.prepare(
+        "SELECT value FROM app_metadata WHERE key = ?",
+      );
+      expect(read.get(removedKey)).toBeUndefined();
+      expect(read.get(keptKey)).toEqual({ value: "2.25" });
+      expect(read.get(preferenceKey)).toEqual({ value: "2.25" });
+    });
+
     it("rethrows unexpected non-validation IPC failures", async () => {
       const service = StorageService.getInstance();
       const failure = new Error("unexpected failure");

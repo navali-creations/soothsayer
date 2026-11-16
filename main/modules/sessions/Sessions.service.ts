@@ -744,7 +744,11 @@ class SessionsService {
       }
     }
 
-    const deckCost = priceSnapshot?.stackedDeckChaosCost ?? 0;
+    const deckCost =
+      session.persistedTotals?.stackedDeckChaosCost ??
+      session.stackedDeckPriceOverride ??
+      priceSnapshot?.stackedDeckChaosCost ??
+      0;
     const totalDeckCost = deckCost * session.totalCount;
 
     const totals = priceSnapshot

@@ -748,6 +748,48 @@ describe("SessionDetailsSlice", () => {
       expect(result.netProfit).toBe(170);
     });
 
+    it.each([2, 0])(
+      "uses the effective deck cost %s while preserving snapshot pricing",
+      async (deckCost) => {
+        await loadSession({
+          totalCount: 10,
+          cards: [
+            {
+              name: "Audit",
+              count: 10,
+              price: {
+                chaosValue: 10,
+                divineValue: 0.1,
+                totalValue: 100,
+                hidePrice: false,
+              },
+            },
+          ],
+          priceSnapshot: {
+            timestamp: "2026-11-16",
+            stackedDeckChaosCost: 3,
+            chaosToDivineRatio: 100,
+            cardPrices: {},
+          },
+          totals: {
+            totalValue: 100,
+            netProfit: 100 - deckCost * 10,
+            stackedDeckChaosCost: deckCost,
+            totalDeckCost: deckCost * 10,
+            chaosToDivineRatio: 100,
+          },
+        });
+        expect(store.getState().sessionDetails.getNetProfit()).toEqual({
+          netProfit: 100 - deckCost * 10,
+          totalDeckCost: deckCost * 10,
+        });
+        expect(
+          store.getState().sessionDetails.session?.priceSnapshot
+            ?.stackedDeckChaosCost,
+        ).toBe(3);
+      },
+    );
+
     it("returns zero deck cost when no session is loaded", () => {
       expect(store.getState().sessionDetails.getNetProfit()).toEqual({
         netProfit: 0,

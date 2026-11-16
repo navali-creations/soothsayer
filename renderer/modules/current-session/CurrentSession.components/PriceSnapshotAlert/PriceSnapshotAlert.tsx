@@ -139,7 +139,7 @@ const PriceSnapshotAlert = () => {
             ) : null}
           </div>
           <div className="text-xs opacity-70 mt-1 flex items-center gap-2 flex-wrap">
-            <span>Use checkboxes to hide anomalous prices</span>
+            <span>Use eye buttons to hide anomalous prices</span>
             {displaySnapshotId && (
               <span className="font-mono text-[10px] opacity-50">
                 • Snapshot: {displaySnapshotId.substring(0, 8)}...

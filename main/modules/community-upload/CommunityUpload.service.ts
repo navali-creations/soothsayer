@@ -410,11 +410,9 @@ class CommunityUploadService {
     if (this.gggUnlinkJob) return this.gggUnlinkJob;
     this.gggAccountRevision += 1;
     const job = this.unlinkGggAccountInternal().finally(() => {
-      if (this.gggUnlinkJob === job) {
-        this.gggUnlinkJob = null;
-        this.unlinkCallbacks.clear();
-        this.unlinkIdentityChanged = false;
-      }
+      this.gggUnlinkJob = null;
+      this.unlinkCallbacks.clear();
+      this.unlinkIdentityChanged = false;
     });
     this.gggUnlinkJob = job;
     return job;

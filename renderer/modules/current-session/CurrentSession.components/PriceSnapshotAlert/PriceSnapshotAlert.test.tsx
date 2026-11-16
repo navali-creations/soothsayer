@@ -146,7 +146,7 @@ describe("PriceSnapshotAlert", () => {
     expect(screen.getByText(/Divine = 220\.00c/)).toBeInTheDocument();
     expect(screen.getByText(/Snapshot: snap-abc\.\.\./)).toBeInTheDocument();
     expect(
-      screen.getByText("Use checkboxes to hide anomalous prices"),
+      screen.getByText("Use eye buttons to hide anomalous prices"),
     ).toBeInTheDocument();
   });
 

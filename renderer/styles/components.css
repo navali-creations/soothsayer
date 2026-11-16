@@ -1,4 +1,17 @@
 @layer utilities {
+  .session-pricing-controls {
+    border: var(--border) solid
+      color-mix(in oklab, var(--color-warning) 10%, var(--color-base-100));
+    background-color: transparent;
+    background-image: repeating-linear-gradient(
+      -45deg,
+      color-mix(in oklab, var(--color-warning) 8%, var(--color-base-100)) 0,
+      color-mix(in oklab, var(--color-warning) 8%, var(--color-base-100)) 10px,
+      transparent 10px,
+      transparent 20px
+    );
+  }
+
   .font-fontin {
     font-family: "Fontin", sans-serif;
   }

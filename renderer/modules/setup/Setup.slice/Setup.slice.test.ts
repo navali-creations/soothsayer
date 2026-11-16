@@ -634,6 +634,22 @@ describe("goBack", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("completeSetup", () => {
+  it("keeps setup open when saving the default sharing preference fails", async () => {
+    store.setState((state) => {
+      state.settings.communityUploadsEnabled = true;
+      state.communityUpload.dropContextConsentLoaded = true;
+    });
+    electron.communityUpload.setDropContextConsent.mockResolvedValueOnce({
+      success: false,
+    });
+    await expect(store.getState().setup.completeSetup()).resolves.toBe(false);
+    expect(electron.appSetup.completeSetup).not.toHaveBeenCalled();
+    expect(store.getState().setup.error).toContain(
+      "Your sharing preference could not be saved",
+    );
+    expect(store.getState().setup.isLoading).toBe(false);
+  });
+
   it("keeps opening times private when setup finishes with the box unchecked", async () => {
     store.setState((state) => {
       state.settings.communityUploadsEnabled = true;

@@ -20,10 +20,12 @@ import {
   assertCardName,
   assertGameType,
   assertSessionId,
+  assertTrustedSender,
   handleValidationError,
   IpcValidationError,
 } from "~/main/utils/ipc-validation";
 import { isOverlayWindow } from "~/main/utils/is-overlay-window";
+import { MAX_SESSION_INPUT_CHAOS } from "~/types/data-stores";
 
 import type {
   AggregatedTimeline,
@@ -40,12 +42,14 @@ import type {
   TimelineDelta,
 } from "../../../types/data-stores";
 import { CurrentSessionChannel } from "./CurrentSession.channels";
+import { buildSessionTotals } from "./CurrentSession.compute";
 import type {
   CardDropContextDTO,
   CardEventContextUpdate,
   HistoricalCardEventCandidate,
   SessionCardEventDTO,
 } from "./CurrentSession.dto";
+import { CurrentSessionMapper } from "./CurrentSession.mapper";
 import { CurrentSessionRepository } from "./CurrentSession.repository";
 
 interface ActiveSessionInfo {
@@ -146,6 +150,13 @@ class CurrentSessionService {
   private poe1HidePriceFlags: Map<string, boolean> = new Map();
   private poe2HidePriceFlags: Map<string, boolean> = new Map();
 
+  private cardPriceThresholds = new Map<GameType, number>();
+  private stackedDeckPriceOverrides = new Map<GameType, number | null>();
+  private automaticallyHiddenCards: Record<GameType, Set<string>> = {
+    poe1: new Set(),
+    poe2: new Set(),
+  };
+
   // Per-card divination card metadata cache (for new card deltas)
   private poe1DivinationCardCache: Map<string, any> = new Map();
   private poe2DivinationCardCache: Map<string, any> = new Map();
@@ -154,6 +165,26 @@ class CurrentSessionService {
   private poe1AppPerformanceCaptureId: string | null = null;
   private poe2AppPerformanceCaptureId: string | null = null;
   private stopSessionPromises = new Map<GameType, StopSessionJob>();
+  private sessionMutations = new Map<GameType, Promise<void>>();
+
+  /** Order cache-seeding reads and writes with the card-drop workflow. */
+  private runSessionMutation<T>(
+    game: GameType,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.sessionMutations.get(game) ?? Promise.resolve();
+    const result = previous.then(operation);
+    const settled = result.then(
+      () => {},
+      () => {},
+    );
+    this.sessionMutations.set(game, settled);
+    void settled.then(() => {
+      if (this.sessionMutations.get(game) === settled)
+        this.sessionMutations.delete(game);
+    });
+    return result;
+  }
 
   static getInstance(): CurrentSessionService {
     if (!CurrentSessionService._instance) {
@@ -282,6 +313,111 @@ class CurrentSessionService {
   // ============================================================================
 
   private setupHandlers(): void {
+    ipcMain.handle(
+      CurrentSessionChannel.GetStackedDeckPriceOverride,
+      (_event, game: GameType) => {
+        try {
+          assertGameType(
+            game,
+            CurrentSessionChannel.GetStackedDeckPriceOverride,
+          );
+          return this.getStackedDeckPriceOverride(game);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            CurrentSessionChannel.GetStackedDeckPriceOverride,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      CurrentSessionChannel.SetStackedDeckPriceOverride,
+      async (event, game: GameType, chaosValue: number | null) => {
+        const channel = CurrentSessionChannel.SetStackedDeckPriceOverride;
+        try {
+          assertTrustedSender(event, channel);
+          assertGameType(game, channel);
+          if (
+            chaosValue !== null &&
+            (typeof chaosValue !== "number" ||
+              !Number.isFinite(chaosValue) ||
+              chaosValue < 0 ||
+              chaosValue > MAX_SESSION_INPUT_CHAOS)
+          ) {
+            throw new IpcValidationError(
+              channel,
+              `Deck price must be null or a finite chaos value between 0 and ${MAX_SESSION_INPUT_CHAOS}`,
+            );
+          }
+          await this.setStackedDeckPriceOverride(game, chaosValue);
+          return { success: true };
+        } catch (error) {
+          if (error instanceof IpcValidationError)
+            return { success: false, error: `Invalid input: ${error.detail}` };
+          console.error(
+            "[CurrentSession] Failed to update Stacked Deck price:",
+            error,
+          );
+          return {
+            success: false,
+            error: "Unable to update the Stacked Deck price",
+          };
+        }
+      },
+    );
+
+    ipcMain.handle(
+      CurrentSessionChannel.GetCardPriceThreshold,
+      (_event, game: GameType) => {
+        try {
+          assertGameType(game, CurrentSessionChannel.GetCardPriceThreshold);
+          return this.getCardPriceThreshold(game);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            CurrentSessionChannel.GetCardPriceThreshold,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      CurrentSessionChannel.SetCardPriceThreshold,
+      async (event, game: GameType, chaosValue: number) => {
+        const channel = CurrentSessionChannel.SetCardPriceThreshold;
+        try {
+          assertTrustedSender(event, channel);
+          assertGameType(game, channel);
+          if (
+            typeof chaosValue !== "number" ||
+            !Number.isFinite(chaosValue) ||
+            chaosValue < 0 ||
+            chaosValue > MAX_SESSION_INPUT_CHAOS
+          ) {
+            throw new IpcValidationError(
+              channel,
+              `Threshold must be a finite chaos value between 0 and ${MAX_SESSION_INPUT_CHAOS}`,
+            );
+          }
+          await this.setCardPriceThreshold(game, chaosValue);
+          return { success: true };
+        } catch (error) {
+          if (error instanceof IpcValidationError) {
+            return { success: false, error: `Invalid input: ${error.detail}` };
+          }
+          console.error(
+            "[CurrentSession] Failed to update card price threshold:",
+            error,
+          );
+          return {
+            success: false,
+            error: "Unable to update the card price threshold",
+          };
+        }
+      },
+    );
+
     // Start session
     ipcMain.handle(
       CurrentSessionChannel.Start,
@@ -348,7 +484,9 @@ class CurrentSessionService {
       async (_event, game: GameType) => {
         try {
           assertGameType(game, CurrentSessionChannel.Get);
-          return await this.getCurrentSession(game);
+          return CurrentSessionMapper.toRendererSessionData(
+            await this.getCurrentSession(game),
+          );
         } catch (error) {
           return handleValidationError(error, CurrentSessionChannel.Get);
         }
@@ -481,6 +619,15 @@ class CurrentSessionService {
    * Start a new session
    */
   public async startSession(game: GameType, league: string): Promise<void> {
+    return this.runSessionMutation(game, () =>
+      this.startSessionInternal(game, league),
+    );
+  }
+
+  private async startSessionInternal(
+    game: GameType,
+    league: string,
+  ): Promise<void> {
     console.log(
       `[CurrentSession] startSession called: game=${game}, league="${league}"`,
     );
@@ -527,11 +674,8 @@ class CurrentSessionService {
     }
 
     // Get or create snapshot for this league
-    const { snapshotId, data: _priceSnapshot } =
+    const { snapshotId, data: priceSnapshot } =
       await this.snapshotService.getSnapshotForSession(game, league);
-
-    // Start auto-refresh for this league
-    this.snapshotService.startAutoRefresh(game, league);
 
     const sessionId = crypto.randomUUID();
     const startedAt = new Date().toISOString();
@@ -542,16 +686,15 @@ class CurrentSessionService {
       throw new Error(`League not found: ${game}/${league}`);
     }
 
-    // Create session via repository
-    await this.repository.createSession({
-      id: sessionId,
-      game,
-      leagueId,
-      snapshotId,
-      startedAt,
-    });
+    const deckPriceOverride = this.getStackedDeckPriceOverride(game);
+    this.repository.createSession(
+      this.rawDb,
+      { id: sessionId, game, leagueId, snapshotId, startedAt },
+      deckPriceOverride,
+    );
 
-    // Set active session
+    // No await between the atomic commit and publishing the active session.
+    this.automaticallyHiddenCards[game].clear();
     const sessionInfo: ActiveSessionInfo = { sessionId, league, startedAt };
 
     if (game === "poe1") {
@@ -559,7 +702,7 @@ class CurrentSessionService {
       this.poe1ProcessedIds.clear();
       this.poe1TimelineCache = null;
       this.poe1CardRarities = null;
-      this.poe1SnapshotCache = null;
+      this.poe1SnapshotCache = { snapshotId, snapshot: priceSnapshot };
       this.poe1CardCounts.clear();
       this.poe1RunningTotal = 0;
       this.poe1HidePriceFlags.clear();
@@ -569,12 +712,13 @@ class CurrentSessionService {
       this.poe2ProcessedIds.clear();
       this.poe2TimelineCache = null;
       this.poe2CardRarities = null;
-      this.poe2SnapshotCache = null;
+      this.poe2SnapshotCache = { snapshotId, snapshot: priceSnapshot };
       this.poe2CardCounts.clear();
       this.poe2RunningTotal = 0;
       this.poe2HidePriceFlags.clear();
       this.poe2DivinationCardCache.clear();
     }
+    this.snapshotService.startAutoRefresh(game, league);
     this.emitSessionStateChange(game);
     await this.startAppPerformanceDiagnosticsForSession(game);
   }
@@ -667,7 +811,9 @@ class CurrentSessionService {
       postFlushPromise: null,
     };
 
-    const stopPromise = this.stopSessionInternal(game, stopJob).finally(() => {
+    const stopPromise = this.runSessionMutation(game, () =>
+      this.stopSessionInternal(game, stopJob),
+    ).finally(() => {
       if (this.stopSessionPromises.get(game) === stopJob) {
         this.stopSessionPromises.delete(game);
       }
@@ -783,6 +929,7 @@ class CurrentSessionService {
     const league = activeSession.league;
 
     // Clear active session and caches
+    this.automaticallyHiddenCards[game].clear();
     if (game === "poe1") {
       this.poe1ActiveSession = null;
       this.poe1ProcessedIds.clear();
@@ -847,7 +994,10 @@ class CurrentSessionService {
     }
 
     // Calculate net profit (subtract stacked deck investment)
-    const deckCost = priceSnapshot.stackedDeckChaosCost ?? 0;
+    const deckCost =
+      this.getStackedDeckPriceOverride(game) ??
+      priceSnapshot.stackedDeckChaosCost ??
+      0;
     const totalDeckCost = deckCost * session.totalCount;
     const netProfit = totalValue - totalDeckCost;
 
@@ -880,6 +1030,22 @@ class CurrentSessionService {
    * Add a card to the current session
    */
   public async addCard(
+    game: GameType,
+    league: string,
+    cardName: string,
+    processedId: string,
+    context?: CardDropContextDTO,
+  ): Promise<void> {
+    const sessionId = this.getActiveSessionInfo(game)?.sessionId;
+    return this.runSessionMutation(game, () => {
+      if (this.getActiveSessionInfo(game)?.sessionId !== sessionId) {
+        throw new Error("Session changed before the card drop was processed");
+      }
+      return this.addCardInternal(game, league, cardName, processedId, context);
+    });
+  }
+
+  private async addCardInternal(
     game: GameType,
     league: string,
     cardName: string,
@@ -936,6 +1102,12 @@ class CurrentSessionService {
       }
     }
 
+    const hidePriceFlags =
+      game === "poe1" ? this.poe1HidePriceFlags : this.poe2HidePriceFlags;
+    const hideNewCard =
+      !hidePriceFlags.has(cardName) &&
+      (chaosValue ?? 0) < this.getCardPriceThreshold(game);
+
     // Perform all hot-path DB writes in a single synchronous better-sqlite3
     // transaction. This replaces the sequential awaits of incrementCardCount(),
     // saveProcessedId(), and DataStore.addCard() — eliminating ~6 event-loop
@@ -960,7 +1132,13 @@ class CurrentSessionService {
       game,
       league,
       processedId,
+      hidePrice: hideNewCard,
     });
+
+    if (hideNewCard) {
+      hidePriceFlags.set(cardName, true);
+      this.automaticallyHiddenCards[game].add(cardName);
+    }
 
     // Ensure rarity map has this card before appending to timeline cache
     await this.ensureCardInRarityMap(game, activeSession.league, cardName);
@@ -1091,6 +1269,14 @@ class CurrentSessionService {
   public async getCurrentSession(
     game: GameType,
   ): Promise<DetailedDivinationCardStats | null> {
+    return this.runSessionMutation(game, () =>
+      this.getCurrentSessionInternal(game),
+    );
+  }
+
+  private async getCurrentSessionInternal(
+    game: GameType,
+  ): Promise<DetailedDivinationCardStats | null> {
     const activeSession =
       game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
 
@@ -1181,6 +1367,8 @@ class CurrentSessionService {
           cardsObject,
           priceSnapshot,
           session.totalCount,
+          this.getStackedDeckPriceOverride(game) ??
+            priceSnapshot.stackedDeckChaosCost,
         )
       : {
           totalValue: 0,
@@ -1307,6 +1495,7 @@ class CurrentSessionService {
     cards: Record<string, CardEntry>,
     priceSnapshot: SessionPriceSnapshot,
     totalDecksOpened: number,
+    stackedDeckChaosCost = priceSnapshot.stackedDeckChaosCost ?? 0,
   ): SessionTotals {
     let totalValue = 0;
 
@@ -1316,22 +1505,186 @@ class CurrentSessionService {
       }
     }
 
-    const deckCost = priceSnapshot.stackedDeckChaosCost ?? 0;
-    const totalDeckCost = deckCost * totalDecksOpened;
-
-    return {
+    return buildSessionTotals(
       totalValue,
-      netProfit: totalValue - totalDeckCost,
-      chaosToDivineRatio: priceSnapshot.chaosToDivineRatio,
-      stackedDeckChaosCost: deckCost,
-      totalDeckCost,
-    };
+      totalDecksOpened,
+      priceSnapshot,
+      stackedDeckChaosCost,
+    );
   }
 
   /**
-   * Update card price visibility
+   * Read the persisted threshold, caching it for the card-drop path.
    */
+  public getCardPriceThreshold(game: GameType): number {
+    let threshold = this.cardPriceThresholds.get(game);
+    if (threshold === undefined) {
+      threshold = this.repository.getCardPriceThreshold(this.rawDb, game);
+      this.cardPriceThresholds.set(game, threshold);
+    }
+    return threshold;
+  }
+
+  public getStackedDeckPriceOverride(game: GameType): number | null {
+    if (!this.stackedDeckPriceOverrides.has(game)) {
+      this.stackedDeckPriceOverrides.set(
+        game,
+        this.repository.getStackedDeckPriceOverride(this.rawDb, game),
+      );
+    }
+    return this.stackedDeckPriceOverrides.get(game) ?? null;
+  }
+
+  public async setStackedDeckPriceOverride(
+    game: GameType,
+    chaosValue: number | null,
+  ): Promise<void> {
+    if (this.stopSessionPromises.has(game)) {
+      throw new Error(
+        "The session is stopping. Try again once it has stopped.",
+      );
+    }
+    return this.runSessionMutation(game, () =>
+      this.setStackedDeckPriceOverrideInternal(game, chaosValue),
+    );
+  }
+
+  private async setStackedDeckPriceOverrideInternal(
+    game: GameType,
+    chaosValue: number | null,
+  ): Promise<void> {
+    const activeSession =
+      game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
+    this.repository.saveStackedDeckPriceOverride(
+      this.rawDb,
+      game,
+      chaosValue,
+      activeSession?.sessionId ?? null,
+    );
+    this.stackedDeckPriceOverrides.set(game, chaosValue);
+    if (activeSession) this.emitPricingUpdate(game, activeSession.sessionId);
+  }
+
+  private emitPricingUpdate(game: GameType, sessionId: string): void {
+    const snapshot =
+      (game === "poe1" ? this.poe1SnapshotCache : this.poe2SnapshotCache)
+        ?.snapshot ?? null;
+    let totalValue = 0;
+    let totalCount = 0;
+    for (const card of this.repository.getSessionPricingCards(
+      this.rawDb,
+      sessionId,
+    )) {
+      totalCount += card.count;
+      if (card.hidePrice !== 1) {
+        totalValue +=
+          (snapshot?.cardPrices[card.cardName]?.chaosValue ?? 0) * card.count;
+      }
+    }
+    const totals = buildSessionTotals(
+      totalValue,
+      totalCount,
+      snapshot,
+      this.getStackedDeckPriceOverride(game),
+    );
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(CurrentSessionChannel.DataInvalidated, { game });
+      if (!isOverlayWindow(window)) {
+        window.webContents.send(CurrentSessionChannel.PricingUpdated, {
+          game,
+          sessionId,
+          totals,
+        });
+      }
+    }
+  }
+
+  public async setCardPriceThreshold(
+    game: GameType,
+    chaosValue: number,
+  ): Promise<void> {
+    if (this.stopSessionPromises.has(game)) {
+      throw new Error(
+        "The session is stopping. Try again once it has stopped.",
+      );
+    }
+    return this.runSessionMutation(game, () =>
+      this.setCardPriceThresholdInternal(game, chaosValue),
+    );
+  }
+
+  private async setCardPriceThresholdInternal(
+    game: GameType,
+    chaosValue: number,
+  ): Promise<void> {
+    const activeSession =
+      game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
+    const snapshot =
+      game === "poe1" ? this.poe1SnapshotCache : this.poe2SnapshotCache;
+    // Reconcile against the latest committed rows without yielding to card drops.
+    const cards = activeSession
+      ? this.repository.getSessionPricingCards(
+          this.rawDb,
+          activeSession.sessionId,
+        )
+      : [];
+
+    const previouslyHidden = this.automaticallyHiddenCards[game];
+    const automaticallyHidden = new Set<string>();
+    const updates: Array<{ cardName: string; hidePrice: boolean }> = [];
+    for (const card of cards) {
+      const manuallyHidden =
+        card.hidePrice === 1 && !previouslyHidden.has(card.cardName);
+      const belowThreshold =
+        (snapshot?.snapshot.cardPrices[card.cardName]?.chaosValue ?? 0) <
+        chaosValue;
+      const hidePrice = manuallyHidden || belowThreshold;
+      if (belowThreshold && !manuallyHidden)
+        automaticallyHidden.add(card.cardName);
+      if (hidePrice !== (card.hidePrice === 1)) {
+        updates.push({ cardName: card.cardName, hidePrice });
+      }
+    }
+
+    this.repository.saveCardPriceThreshold(
+      this.rawDb,
+      game,
+      chaosValue,
+      activeSession?.sessionId ?? null,
+      updates,
+    );
+    this.cardPriceThresholds.set(game, chaosValue);
+    this.automaticallyHiddenCards[game] = automaticallyHidden;
+    const hidePriceFlags =
+      game === "poe1" ? this.poe1HidePriceFlags : this.poe2HidePriceFlags;
+    for (const { cardName, hidePrice } of updates)
+      hidePriceFlags.set(cardName, hidePrice);
+    if (game === "poe1") {
+      this.poe1TimelineCache = null;
+    } else {
+      this.poe2TimelineCache = null;
+    }
+    if (activeSession) await this.emitSessionDataUpdate(game);
+  }
+
+  /** Update the manual visibility override for a card. */
   public async updateCardPriceVisibility(
+    game: GameType,
+    sessionId: string,
+    cardName: string,
+    hidePrice: boolean,
+  ): Promise<void> {
+    return this.runSessionMutation(game, () =>
+      this.updateCardPriceVisibilityInternal(
+        game,
+        sessionId,
+        cardName,
+        hidePrice,
+      ),
+    );
+  }
+
+  private async updateCardPriceVisibilityInternal(
     game: GameType,
     sessionId: string,
     cardName: string,
@@ -1355,6 +1708,12 @@ class CurrentSessionService {
       cardName,
       hidePrice,
     );
+
+    const activeSession =
+      game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
+    if (activeSession?.sessionId === actualSessionId) {
+      this.automaticallyHiddenCards[game].delete(cardName);
+    }
 
     // Update in-memory hidePrice flags cache
     if (sessionId === "current") {
@@ -1782,16 +2141,12 @@ class CurrentSessionService {
     }
 
     // Build updated totals
-    const deckCost = snapshot?.stackedDeckChaosCost ?? 0;
-    const totalDeckCost = deckCost * totalCount;
-
-    const updatedTotals: SessionTotals = {
-      totalValue: runningTotal,
-      netProfit: runningTotal - totalDeckCost,
-      chaosToDivineRatio: snapshot?.chaosToDivineRatio ?? 0,
-      stackedDeckChaosCost: deckCost,
-      totalDeckCost,
-    };
+    const updatedTotals = buildSessionTotals(
+      runningTotal,
+      totalCount,
+      snapshot,
+      this.getStackedDeckPriceOverride(game),
+    );
 
     // Build recent drop entry
     const rarity = (rarities?.get(cardName) ?? 4) as Rarity;
@@ -1830,7 +2185,9 @@ class CurrentSessionService {
   }
 
   private async emitSessionDataUpdate(game: GameType): Promise<void> {
-    const sessionData = await this.getCurrentSession(game);
+    const sessionData = CurrentSessionMapper.toRendererSessionData(
+      await this.getCurrentSessionInternal(game),
+    );
     const windows = BrowserWindow.getAllWindows();
     for (const window of windows) {
       const invalidation = { game };

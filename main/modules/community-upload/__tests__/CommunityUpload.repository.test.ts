@@ -30,6 +30,28 @@ describe("CommunityUploadRepository", () => {
     await testDb.close();
   });
 
+  it.each([
+    ["COMMUNITY_IDENTITY_CONFLICT", "account-mismatch"],
+    ["COMMUNITY_IDENTITY_PROOF_REQUIRED", "verification-required"],
+  ] as const)(
+    "recovers %s from an older count-outbox error message",
+    async (code, warning) => {
+      await testDb.kysely
+        .insertInto("community_upload_outbox")
+        .values({
+          identity_id: "legacy-owner",
+          game: "poe1",
+          scope: "Settlers",
+          cards_json: "[]",
+          last_error: `Upload rejected: ${code} for previous account`,
+        })
+        .execute();
+      await expect(repository.getUploadWarning(null, false)).resolves.toBe(
+        warning,
+      );
+    },
+  );
+
   it("uses indexed owner lookups for a 120,000-event history queue", async () => {
     testDb.db
       .prepare(

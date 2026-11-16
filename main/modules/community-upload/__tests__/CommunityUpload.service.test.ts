@@ -24,6 +24,8 @@ const {
   MockIpcValidationError,
   mockSentryCaptureException,
   mockGetAccessToken,
+  mockGetAccountId,
+  mockNotifyAuthStatusChanged,
 } = vi.hoisted(() => {
   class _MockIpcValidationError extends Error {
     detail: string;
@@ -48,6 +50,8 @@ const {
     MockIpcValidationError: _MockIpcValidationError,
     mockSentryCaptureException: vi.fn(),
     mockGetAccessToken: vi.fn(),
+    mockGetAccountId: vi.fn(),
+    mockNotifyAuthStatusChanged: vi.fn(),
   };
 });
 
@@ -75,7 +79,11 @@ vi.mock("~/main/modules/supabase", () =>
 );
 
 vi.mock("~/main/modules/ggg-auth", () =>
-  createGggAuthServiceMock({ mockGetAccessToken }),
+  createGggAuthServiceMock({
+    mockGetAccessToken,
+    mockGetAccountId,
+    mockNotifyAuthStatusChanged,
+  }),
 );
 
 vi.mock("~/main/utils/ipc-validation", async (importOriginal) => ({
@@ -147,6 +155,8 @@ describe("CommunityUploadService", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetAccountId.mockReset().mockResolvedValue(null);
+    mockNotifyAuthStatusChanged.mockReset();
     // Default: uploads enabled, supabase configured
     mockSettingsGet.mockResolvedValue(true);
     mockIsConfigured.mockReturnValue(true);
@@ -223,6 +233,23 @@ describe("CommunityUploadService", () => {
     beforeEach(() => {
       mockGetKysely.mockReturnValue(createKyselyChain());
       service = CommunityUploadService.getInstance();
+    });
+
+    it("returns a safe error when the saved consent cannot be read", async () => {
+      vi.spyOn(
+        getRepository(service),
+        "getDropContextConsent",
+      ).mockRejectedValueOnce(new Error("private database failure"));
+      mockHandleValidationError.mockReturnValueOnce({
+        success: false,
+        error: "Consent unavailable",
+      });
+      await expect(
+        getIpcHandler(
+          mockIpcHandle,
+          CommunityUploadChannel.GetDropContextConsent,
+        )({ sender: { id: 1 } }),
+      ).resolves.toEqual({ success: false, error: "Consent unavailable" });
     });
 
     it("returns the stored choice without granting consent", async () => {
@@ -912,6 +939,431 @@ describe("CommunityUploadService", () => {
         error: expect.stringContaining("untrusted webContents"),
       });
     });
+  });
+
+  describe("account changes during verification and upload", () => {
+    beforeEach(() => {
+      mockGetKysely.mockReturnValue(createKyselyChain());
+      service = CommunityUploadService.getInstance();
+      mockGetAccountId.mockResolvedValue("account-a");
+      mockGetAccessToken.mockResolvedValue("proof");
+      vi.spyOn(
+        CommunityIdentityRepository.prototype,
+        "getVerified",
+      ).mockResolvedValue(undefined);
+      vi.spyOn(
+        CommunityIdentityRepository.prototype,
+        "activateVerified",
+      ).mockImplementation(() => {});
+      vi.spyOn(
+        CommunityIdentityRepository.prototype,
+        "activateAnonymous",
+      ).mockImplementation((clear) => clear());
+      vi.spyOn(service, "getDeviceId").mockResolvedValue("legacy-id");
+      vi.spyOn(service as any, "emitDropContextUploadStatus").mockResolvedValue(
+        undefined,
+      );
+      vi.spyOn(service as any, "resumeVerifiedUploads").mockResolvedValue(
+        undefined,
+      );
+      mockCallEdgeFunction.mockImplementation(async (_name, payload) => ({
+        success: true,
+        device_id: payload.device_id,
+        ggg_uuid: "account-a",
+        legacy_anonymous: false,
+      }));
+    });
+
+    it.each([
+      "different account",
+      "missing proof",
+      "account changed before request",
+    ])("does not activate verification with %s", async (failure) => {
+      if (failure === "different account")
+        mockGetAccountId.mockResolvedValue("account-b");
+      if (failure === "missing proof")
+        mockGetAccessToken.mockResolvedValue(null);
+      if (failure === "account changed before request")
+        vi.spyOn(service, "getDeviceId").mockImplementationOnce(async () => {
+          mockGetAccountId.mockResolvedValue("account-b");
+          return "legacy-id";
+        });
+      await expect(service.linkGggAccount("account-a")).rejects.toThrow(
+        failure === "missing proof"
+          ? "verification is unavailable"
+          : "sign-in changed while linking",
+      );
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+      expect(
+        CommunityIdentityRepository.prototype.activateVerified,
+      ).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      null,
+      { success: false },
+      { success: true, ggg_uuid: "account-b", device_id: "legacy-id" },
+      { success: true, ggg_uuid: "account-a", device_id: "another-device" },
+    ])("rejects an unacknowledged identity response %j", async (response) => {
+      mockCallEdgeFunction.mockResolvedValueOnce(response);
+      await expect(service.linkGggAccount("account-a")).rejects.toThrow(
+        "identity was not acknowledged",
+      );
+      expect(
+        CommunityIdentityRepository.prototype.activateVerified,
+      ).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      "device ID",
+      "account before request",
+      "account after acknowledgement",
+    ])(
+      "cancels verification when unlink starts while reading %s",
+      async (stage) => {
+        const reading = Promise.withResolvers<void>();
+        const finish = Promise.withResolvers<string>();
+        if (stage === "device ID")
+          vi.spyOn(service, "getDeviceId").mockImplementationOnce(() => {
+            reading.resolve();
+            return finish.promise;
+          });
+        else {
+          let reads = 0;
+          mockGetAccountId.mockImplementation(() => {
+            reads += 1;
+            if (reads === (stage === "account before request" ? 2 : 3)) {
+              reading.resolve();
+              return finish.promise;
+            }
+            return Promise.resolve("account-a");
+          });
+        }
+        const linking = service.linkGggAccount("account-a");
+        await reading.promise;
+        const unlinking = service.unlinkGggAccount();
+        await service.linkGggAccount("account-b");
+        finish.resolve(stage === "device ID" ? "legacy-id" : "account-a");
+        await Promise.all([linking, unlinking]);
+        expect(
+          CommunityIdentityRepository.prototype.activateVerified,
+        ).not.toHaveBeenCalled();
+        expect(
+          CommunityIdentityRepository.prototype.activateAnonymous,
+        ).toHaveBeenCalledOnce();
+      },
+    );
+
+    it.each([false, true])(
+      "runs late credential cleanup on an already-switched unlink (failed=%s)",
+      async (failed) => {
+        const clear = vi.fn(() => {
+          if (failed) throw new Error("credential cleanup failed");
+        });
+        let late!: Promise<void>;
+        mockNotifyAuthStatusChanged.mockImplementationOnce(() => {
+          late = service.unlinkGggAccount(clear);
+          if (failed) void late.catch(() => {});
+        });
+        const first = service.unlinkGggAccount();
+        const overlapping = service.unlinkGggAccount();
+        expect(overlapping).toBe(first);
+        await first;
+        if (failed)
+          await expect(late).rejects.toThrow("credential cleanup failed");
+        else await expect(late).resolves.toBeUndefined();
+        expect(clear).toHaveBeenCalledOnce();
+        expect(
+          CommunityIdentityRepository.prototype.activateAnonymous,
+        ).toHaveBeenCalledOnce();
+      },
+    );
+
+    it.each([new Error("retry release failed"), "retry release failed"])(
+      "reports resume failures without rejecting verification: %s",
+      async (failure) => {
+        vi.mocked((service as any).resumeVerifiedUploads).mockRestore();
+        vi.spyOn(
+          getRepository(service),
+          "releaseVerificationRetries",
+        ).mockRejectedValueOnce(failure);
+        await service.linkGggAccount("account-a");
+        await service.drainInFlightUploads();
+        expect(mockSentryCaptureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "retry release failed" }),
+          expect.objectContaining({
+            tags: { module: "community-upload", operation: "resume-verified" },
+          }),
+        );
+      },
+    );
+
+    it("pauses automatic retries after sharing is disabled", async () => {
+      vi.mocked((service as any).resumeVerifiedUploads).mockRestore();
+      mockSettingsGet.mockResolvedValue(false);
+      await (service as any).resumeVerifiedUploads("account-a", 0);
+      expect(
+        getRepository(service).releaseVerificationRetries,
+      ).not.toHaveBeenCalled();
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    });
+
+    it("does not resume a released queue if unlink changes the account in the meantime", async () => {
+      vi.mocked((service as any).resumeVerifiedUploads).mockRestore();
+      const released = Promise.withResolvers<void>();
+      vi.spyOn(
+        getRepository(service),
+        "releaseVerificationRetries",
+      ).mockReturnValueOnce(released.promise);
+      const flush = vi
+        .spyOn(service, "flushPendingUploads")
+        .mockResolvedValue();
+      const resuming = (service as any).resumeVerifiedUploads("account-a", 0);
+      await vi.waitFor(() =>
+        expect(
+          getRepository(service).releaseVerificationRetries,
+        ).toHaveBeenCalledOnce(),
+      );
+      await service.unlinkGggAccount();
+      released.resolve();
+      await resuming;
+      expect(flush).not.toHaveBeenCalled();
+    });
+
+    it("keeps the newest account's resume job while an older resume finishes", async () => {
+      const first = Promise.withResolvers<void>();
+      const second = Promise.withResolvers<void>();
+      vi.spyOn(service as any, "activateVerifiedIdentity").mockResolvedValue(
+        "account-a",
+      );
+      vi.mocked((service as any).resumeVerifiedUploads)
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise);
+      await service.linkGggAccount("account-a");
+      await service.linkGggAccount("account-b");
+      const newest = (service as any).verifiedResumeJob;
+      first.resolve();
+      await first.promise;
+      expect((service as any).verifiedResumeJob).toBe(newest);
+      second.resolve();
+      await service.drainInFlightUploads();
+      expect((service as any).verifiedResumeJob).toBeNull();
+    });
+
+    it("does not inspect upload ownership while unlinking", async () => {
+      const unlinking = service.unlinkGggAccount();
+      const access = (service as any).getOwnerAccess(
+        "owner",
+        "poe1",
+        "Settlers",
+      );
+      const ensuring = (service as any).ensureAccountIdentity();
+      await expect(access).resolves.toEqual({ allowed: false, token: null });
+      await Promise.all([ensuring, unlinking]);
+      expect(mockGetAccountId).not.toHaveBeenCalled();
+    });
+
+    it("continues the newest account verification after an older link fails", async () => {
+      const oldResponse = Promise.withResolvers<string>();
+      const activate = vi
+        .spyOn(service as any, "activateVerifiedIdentity")
+        .mockReturnValueOnce(oldResponse.promise)
+        .mockResolvedValueOnce("account-b");
+      const first = service.linkGggAccount("account-a");
+      const failure = expect(first).rejects.toThrow("old verification failed");
+      const second = service.linkGggAccount("account-b");
+      oldResponse.reject(new Error("old verification failed"));
+      await Promise.all([failure, second]);
+      expect(activate).toHaveBeenCalledTimes(2);
+      expect(activate).toHaveBeenLastCalledWith("account-b", 2);
+      expect(
+        (service as any).resumeVerifiedUploads,
+      ).toHaveBeenCalledExactlyOnceWith("account-b", 2);
+    });
+
+    it.each(["retired", "missing", "signed out"])(
+      "does not upload data for a %s identity",
+      async (kind) => {
+        if (kind === "retired")
+          vi.spyOn(
+            CommunityIdentityRepository.prototype,
+            "isRetired",
+          ).mockResolvedValueOnce(true);
+        else
+          vi.spyOn(
+            CommunityIdentityRepository.prototype,
+            "get",
+          ).mockResolvedValueOnce(
+            kind === "missing"
+              ? undefined
+              : { id: "owner", kind: "verified", account_id: "account-a" },
+          );
+        if (kind === "signed out") {
+          mockGetAccountId.mockResolvedValue(null);
+          vi.spyOn(
+            CommunityIdentityRepository.prototype,
+            "getActive",
+          ).mockResolvedValueOnce({
+            id: "owner",
+            kind: "verified",
+            account_id: "account-a",
+          });
+        }
+        await expect(
+          (service as any).getOwnerAccess("owner", "poe1", "Settlers"),
+        ).resolves.toEqual({ allowed: false, token: null });
+        expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+        if (kind === "signed out")
+          expect(
+            CommunityIdentityRepository.prototype.activateAnonymous,
+          ).toHaveBeenCalledOnce();
+      },
+    );
+
+    it("returns an empty status when no upload identities are eligible", async () => {
+      vi.spyOn(
+        CommunityIdentityRepository.prototype,
+        "getEligibleIds",
+      ).mockResolvedValueOnce([]);
+      await expect(service.getDropContextUploadStatus()).resolves.toEqual({
+        pendingEvents: 0,
+        isUploading: false,
+        revision: 0,
+      });
+    });
+
+    it("leaves session uploads unavailable when the backend is not configured", async () => {
+      mockIsConfigured.mockReturnValue(false);
+      await expect(
+        service.uploadOnSessionEnd("poe1", "Settlers", {
+          throwOnFailure: true,
+        }),
+      ).rejects.toThrow("Community uploads are unavailable");
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    });
+
+    it("normalizes preparation failures that are not Error objects", async () => {
+      vi.spyOn(service as any, "ensureAccountIdentity").mockRejectedValueOnce(
+        "preparation failed",
+      );
+      await expect(
+        service.uploadOnSessionEnd("poe1", "Settlers", {
+          throwOnFailure: true,
+        }),
+      ).rejects.toThrow("preparation failed");
+      expect(mockSentryCaptureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "preparation failed" }),
+        expect.any(Object),
+      );
+    });
+
+    it("coalesces overlapping flushes for the same owner and league", async () => {
+      const flushed = Promise.withResolvers<void>();
+      const loop = vi
+        .spyOn(service as any, "flushPendingUploadLoop")
+        .mockReturnValueOnce(flushed.promise);
+      const first = (service as any).flushPendingUpload(
+        "poe1",
+        "Settlers",
+        "owner",
+      );
+      const second = (service as any).flushPendingUpload(
+        "poe1",
+        "Settlers",
+        "owner",
+      );
+      flushed.resolve();
+      await Promise.all([first, second]);
+      expect(loop).toHaveBeenCalledOnce();
+    });
+
+    it("does not process a queued count retry after sharing is disabled", async () => {
+      mockSettingsGet.mockResolvedValue(false);
+      await expect(
+        (service as any).flushPendingUploadOnce("poe1", "Settlers", "owner"),
+      ).resolves.toBe("retry-later");
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    });
+
+    it("does not recreate local upload progress for an identity retired during its network request", async () => {
+      vi.spyOn(service as any, "getOwnerAccess").mockResolvedValueOnce({
+        allowed: true,
+        token: null,
+      });
+      mockCallEdgeFunction.mockImplementationOnce(async () => {
+        vi.spyOn(
+          CommunityIdentityRepository.prototype,
+          "isRetired",
+        ).mockResolvedValue(true);
+        return {
+          success: true,
+          upload_id: "upload",
+          total_cards: 1,
+          unique_cards: 1,
+          upload_count: 1,
+          is_verified: false,
+        };
+      });
+      await expect(
+        (service as any).sendPendingUpload(
+          "poe1",
+          "Settlers",
+          [{ card_name: "The Doctor", count: 1 }],
+          "owner",
+        ),
+      ).resolves.toBe(true);
+      expect(
+        mockGetKysely.mock.results.at(-1)?.value.insertInto,
+      ).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      "sharing disabled",
+      "context consent withdrawn",
+      "account changed",
+    ])(
+      "keeps the event queue intact when %s before sending a prepared batch",
+      async (change) => {
+        vi.spyOn(service as any, "getOwnerAccess").mockResolvedValueOnce({
+          allowed: true,
+          token: null,
+        });
+        vi.spyOn(service as any, "getPendingDropEvents").mockResolvedValueOnce([
+          {
+            event_id: "event",
+            card_name: "The Doctor",
+            local_minute: 1,
+            utc_offset_minutes: 0,
+            location: null,
+          },
+        ]);
+        const sending = vi.spyOn(service as any, "sendPendingDropEvents");
+        const deleting = vi.spyOn(service as any, "deletePendingDropEvents");
+        if (change === "sharing disabled")
+          vi.spyOn(service, "isEnabled")
+            .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce(false);
+        if (change === "context consent withdrawn")
+          vi.spyOn(getRepository(service), "getDropContextConsent")
+            .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce(false);
+        if (change === "account changed")
+          vi.spyOn(
+            service as any,
+            "reserveDropEventRequest",
+          ).mockImplementationOnce(() => {
+            void service.unlinkGggAccount();
+            return true;
+          });
+        await (service as any).flushPendingDropEventLoop(
+          "poe1",
+          "Settlers",
+          "owner",
+        );
+        expect(sending).not.toHaveBeenCalled();
+        expect(deleting).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("remaining branch coverage", () => {

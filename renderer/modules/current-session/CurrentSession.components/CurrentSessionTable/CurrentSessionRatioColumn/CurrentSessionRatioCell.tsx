@@ -1,5 +1,6 @@
 import type { CellContext } from "@tanstack/react-table";
 
+import SessionRatioValue from "~/renderer/components/Table/cells/SessionRatioValue/SessionRatioValue";
 import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import { useCurrentSession } from "~/renderer/store";
 import type { CardEntry } from "~/types/data-stores";
@@ -13,7 +14,12 @@ const CurrentSessionRatioCell = (
   const cardCount = cellProps.row.original.count;
   const ratio = (cardCount / totalCount) * 100;
 
-  return <div className="badge badge-soft">{ratio.toFixed(2)}%</div>;
+  return (
+    <SessionRatioValue
+      ratio={ratio}
+      hidden={cellProps.row.original.price?.hidePrice ?? false}
+    />
+  );
 };
 
 export default CurrentSessionRatioCell;

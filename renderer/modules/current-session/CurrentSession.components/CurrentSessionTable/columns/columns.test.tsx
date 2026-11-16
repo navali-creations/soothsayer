@@ -28,9 +28,12 @@ vi.mock("~/renderer/components", () => ({
 
 vi.mock("react-icons/fi", () => ({
   FiEye: (props: any) => <span data-testid="fi-eye" {...props} />,
+  FiEyeOff: (props: any) => <span data-testid="fi-eye-off" {...props} />,
 }));
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
+
+import CardCountCell from "~/renderer/components/Table/cells/CardCountCell/CardCountCell";
 
 import CurrentSessionChaosValueCell from "../CurrentSessionChaosValueColumn/CurrentSessionChaosValueCell";
 import { createCurrentSessionChaosValueColumn } from "../CurrentSessionChaosValueColumn/createCurrentSessionChaosValueColumn";
@@ -56,7 +59,9 @@ function setupStore(overrides: any = {}) {
       ...overrides.settings,
     },
   } as any;
-  mockUseBoundStore.mockReturnValue(store);
+  mockUseBoundStore.mockImplementation((selector) =>
+    selector ? selector(store) : store,
+  );
   return store;
 }
 
@@ -112,13 +117,13 @@ describe("CurrentSessionChaosValueColumn", () => {
       expect(column.enableSorting).toBe(true);
     });
 
-    it("renders a TableHeader with 'Value (Each)' text", () => {
+    it("renders a TableHeader with 'Chaos Value' text", () => {
       const column = createCurrentSessionChaosValueColumn();
 
       renderWithProviders((column as any).header({}));
 
       expect(screen.getByTestId("table-header")).toHaveTextContent(
-        "Value (Each)",
+        "Chaos Value",
       );
     });
 
@@ -180,27 +185,27 @@ describe("CurrentSessionChaosValueColumn", () => {
       expect(screen.getByText("50.00c")).toBeInTheDocument();
     });
 
-    it("renders N/A when chaosValue is 0", () => {
+    it("renders a dash when chaosValue is 0", () => {
       renderWithProviders(
         <CurrentSessionChaosValueCell
           {...createCellContext(makeCardEntry({ price: { chaosValue: 0 } }))}
         />,
       );
 
-      expect(screen.getByText("N/A")).toBeInTheDocument();
+      expect(screen.getByText("—")).toBeInTheDocument();
     });
 
-    it("renders N/A when price is undefined", () => {
+    it("renders a dash when price is undefined", () => {
       renderWithProviders(
         <CurrentSessionChaosValueCell
           {...createCellContext(makeCardEntry({ price: undefined }))}
         />,
       );
 
-      expect(screen.getByText("N/A")).toBeInTheDocument();
+      expect(screen.getByText("—")).toBeInTheDocument();
     });
 
-    it("applies opacity-50 class when hidePrice is true", () => {
+    it("applies opacity-40 class when hidePrice is true", () => {
       renderWithProviders(
         <CurrentSessionChaosValueCell
           {...createCellContext(
@@ -209,10 +214,10 @@ describe("CurrentSessionChaosValueColumn", () => {
         />,
       );
 
-      expect(screen.getByText("2.50d")).toHaveClass("opacity-50");
+      expect(screen.getByText("2.50d")).toHaveClass("opacity-40");
     });
 
-    it("does not apply opacity-50 class when hidePrice is false", () => {
+    it("does not apply opacity-40 class when hidePrice is false", () => {
       renderWithProviders(
         <CurrentSessionChaosValueCell
           {...createCellContext(
@@ -221,7 +226,7 @@ describe("CurrentSessionChaosValueColumn", () => {
         />,
       );
 
-      expect(screen.getByText("2.50d")).not.toHaveClass("opacity-50");
+      expect(screen.getByText("2.50d")).not.toHaveClass("opacity-40");
     });
   });
 });
@@ -261,21 +266,14 @@ describe("CurrentSessionHidePriceColumn", () => {
       renderWithProviders((column as any).header({}));
 
       expect(screen.getByTestId("fi-eye")).toBeInTheDocument();
-      expect(screen.getByTestId("table-header")).toHaveAttribute(
-        "data-tooltip",
-        "Hide anomalous prices from total calculations",
-      );
-      expect(screen.getByTestId("table-header")).toHaveClass(
-        "flex",
-        "w-full",
-        "justify-center",
-        "pl-1",
-      );
+      expect(
+        screen.getByTestId("fi-eye").closest(".app-tooltip-trigger"),
+      ).toHaveAttribute("data-tip", "Toggle price visibility (affects totals)");
     });
   });
 
   describe("CurrentSessionHidePriceCell", () => {
-    it("renders a checkbox that is checked when hidePrice is false", () => {
+    it("renders an included-price eye button when hidePrice is false", () => {
       renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
@@ -284,10 +282,13 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      expect(screen.getByRole("checkbox")).toBeChecked();
+      expect(screen.getByRole("button")).toHaveAccessibleName(
+        "Click to exclude from totals",
+      );
+      expect(screen.getByTestId("fi-eye")).toHaveClass("text-success");
     });
 
-    it("renders a checkbox that is unchecked when hidePrice is true", () => {
+    it("renders a hidden-price eye button when hidePrice is true", () => {
       renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
@@ -296,10 +297,13 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      expect(screen.getByRole("checkbox")).not.toBeChecked();
+      expect(screen.getByRole("button")).toHaveAccessibleName(
+        "Click to include in totals",
+      );
+      expect(screen.getByTestId("fi-eye-off")).toHaveClass("text-error");
     });
 
-    it("calls toggleCardPriceVisibility on change", async () => {
+    it("calls toggleCardPriceVisibility on click", async () => {
       const store = setupStore();
 
       const { user } = renderWithProviders(
@@ -311,14 +315,14 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      await user.click(screen.getByRole("checkbox"));
+      await user.click(screen.getByRole("button"));
 
       expect(
         store.currentSession.toggleCardPriceVisibility,
       ).toHaveBeenCalledWith("The Doctor");
     });
 
-    it("disables checkbox when session has no price snapshot", () => {
+    it("disables button when session has no price snapshot", () => {
       setupStore({
         currentSession: {
           getSession: vi.fn(() => ({ priceSnapshot: null })),
@@ -333,20 +337,20 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      expect(screen.getByRole("checkbox")).toBeDisabled();
+      expect(screen.getByRole("button")).toBeDisabled();
     });
 
-    it("disables checkbox when price is undefined", () => {
+    it("disables button when price is undefined", () => {
       renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(makeCardEntry({ price: undefined }))}
         />,
       );
 
-      expect(screen.getByRole("checkbox")).toBeDisabled();
+      expect(screen.getByRole("button")).toBeDisabled();
     });
 
-    it("enables checkbox when session has a snapshot and price", () => {
+    it("enables button when session has a snapshot and price", () => {
       renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
@@ -355,7 +359,7 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      expect(screen.getByRole("checkbox")).toBeEnabled();
+      expect(screen.getByRole("button")).toBeEnabled();
     });
 
     it("describes disabled price visibility when there is no snapshot", () => {
@@ -371,7 +375,7 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      expect(screen.getByRole("checkbox")).toHaveAccessibleName(
+      expect(screen.getByRole("button")).toHaveAccessibleName(
         "Price visibility can only be changed when using snapshot prices",
       );
     });
@@ -385,8 +389,8 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      expect(screen.getByRole("checkbox")).toHaveAccessibleName(
-        "Price included in calculations",
+      expect(screen.getByRole("button")).toHaveAccessibleName(
+        "Click to exclude from totals",
       );
     });
 
@@ -399,8 +403,8 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      expect(screen.getByRole("checkbox")).toHaveAccessibleName(
-        "Price hidden from calculations",
+      expect(screen.getByRole("button")).toHaveAccessibleName(
+        "Click to include in totals",
       );
     });
 
@@ -411,7 +415,9 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      expect(screen.getByRole("checkbox")).toBeChecked();
+      expect(screen.getByRole("button")).toHaveAccessibleName(
+        "Click to exclude from totals",
+      );
     });
   });
 });
@@ -433,15 +439,14 @@ describe("CurrentSessionRatioColumn", () => {
       expect(column.id).toBe("ratio");
     });
 
-    it("renders a TableHeader with tooltip and 'Ratio' text", () => {
+    it("renders the same Ratio header tooltip as session details", () => {
       const column = createCurrentSessionRatioColumn();
 
       renderWithProviders((column as any).header({}));
 
-      expect(screen.getByTestId("table-header")).toHaveTextContent("Ratio");
-      expect(screen.getByTestId("table-header")).toHaveAttribute(
-        "data-tooltip",
-        "How often you've found this card compared to all other cards",
+      expect(screen.getByText("Ratio")).toHaveAttribute(
+        "data-tip",
+        "How often this card appeared compared to all other cards",
       );
     });
   });
@@ -509,12 +514,13 @@ describe("CurrentSessionRatioColumn", () => {
       expect(screen.getByText("100.00%")).toBeInTheDocument();
     });
 
-    it("renders in a badge", () => {
+    it("renders plain numeric text like session details", () => {
       renderWithProviders(
         <CurrentSessionRatioCell {...createCellContext(makeCardEntry())} />,
       );
 
-      expect(screen.getByText("5.00%")).toHaveClass("badge", "badge-soft");
+      expect(screen.getByText("5.00%")).toHaveClass("tabular-nums");
+      expect(screen.getByText("5.00%")).not.toHaveClass("badge");
     });
 
     it("handles count of 0 as 0.00%", () => {
@@ -527,6 +533,27 @@ describe("CurrentSessionRatioColumn", () => {
       expect(screen.getByText("0.00%")).toBeInTheDocument();
     });
   });
+});
+
+describe("CardCountCell visibility", () => {
+  it.each([false, true])(
+    "keeps the count visible when hidden=%s",
+    (hidePrice) => {
+      renderWithProviders(
+        <CardCountCell
+          {...createCellContext(makeCardEntry({ price: { hidePrice } }), 5)}
+        />,
+      );
+
+      const count = screen.getByText("5");
+      expect(count).toHaveClass("badge", "badge-soft");
+      if (hidePrice) {
+        expect(count).toHaveClass("opacity-40");
+      } else {
+        expect(count).not.toHaveClass("opacity-40");
+      }
+    },
+  );
 });
 
 describe("CurrentSessionTotalValueColumn", () => {
@@ -624,7 +651,7 @@ describe("CurrentSessionTotalValueColumn", () => {
       expect(screen.getByText("50.00c")).toBeInTheDocument();
     });
 
-    it("renders N/A when totalValue is 0", () => {
+    it("renders a dash when totalValue is 0", () => {
       renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
@@ -633,20 +660,20 @@ describe("CurrentSessionTotalValueColumn", () => {
         />,
       );
 
-      expect(screen.getByText("N/A")).toBeInTheDocument();
+      expect(screen.getByText("—")).toBeInTheDocument();
     });
 
-    it("renders N/A when price is undefined", () => {
+    it("renders a dash when price is undefined", () => {
       renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(makeCardEntry({ price: undefined }))}
         />,
       );
 
-      expect(screen.getByText("N/A")).toBeInTheDocument();
+      expect(screen.getByText("—")).toBeInTheDocument();
     });
 
-    it("applies badge-success class when not hidden", () => {
+    it("uses success-colored text when not hidden", () => {
       renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
@@ -655,10 +682,10 @@ describe("CurrentSessionTotalValueColumn", () => {
         />,
       );
 
-      expect(screen.getByText("5.00d")).toHaveClass("badge-success");
+      expect(screen.getByText("5.00d")).toHaveClass("text-success");
     });
 
-    it("applies badge-warning and opacity-50 class when hidden", () => {
+    it("dims a hidden total without adding a value badge", () => {
       renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
@@ -667,13 +694,14 @@ describe("CurrentSessionTotalValueColumn", () => {
         />,
       );
 
-      expect(screen.getByText(/hidden/)).toHaveClass(
-        "badge-warning",
-        "opacity-50",
+      expect(screen.getByText("5.00d")).toHaveClass("opacity-40");
+      expect(screen.getByText("5.00d")).not.toHaveClass(
+        "badge",
+        "text-success",
       );
     });
 
-    it("appends ' (hidden)' text when hidePrice is true", () => {
+    it("leaves the Hidden label in the card-name column", () => {
       renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
@@ -682,7 +710,8 @@ describe("CurrentSessionTotalValueColumn", () => {
         />,
       );
 
-      expect(screen.getByText("5.00d (hidden)")).toBeInTheDocument();
+      expect(screen.getByText("5.00d")).toBeInTheDocument();
+      expect(screen.queryByText(/hidden/)).not.toBeInTheDocument();
     });
 
     it("does not append ' (hidden)' text when hidePrice is false", () => {
@@ -707,7 +736,7 @@ describe("CurrentSessionTotalValueColumn", () => {
         />,
       );
 
-      expect(screen.getByText("2.00d")).toHaveClass("badge-success");
+      expect(screen.getByText("2.00d")).toHaveClass("text-success");
       expect(screen.queryByText(/hidden/)).not.toBeInTheDocument();
     });
   });

@@ -1212,7 +1212,7 @@ describe("Table – edge cases", () => {
 
 // ─── 14. CardCountCell ────────────────────────────────────────────────────
 
-import CardCountCell from "./cells/CardCountCell";
+import CardCountCell from "./cells/CardCountCell/CardCountCell";
 
 describe("CardCountCell", () => {
   const createMockCellProps = (value: number) =>

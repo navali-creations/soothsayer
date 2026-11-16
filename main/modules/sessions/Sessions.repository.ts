@@ -10,6 +10,11 @@ import type {
   SessionSummaryDTO,
 } from "./Sessions.dto";
 import { SessionsMapper } from "./Sessions.mapper";
+import {
+  effectiveSessionDeckCostSql,
+  sessionDeckPriceKey,
+  sessionDeckPriceSql,
+} from "./Sessions.utils/Sessions.utils";
 
 /**
  * Escape SQL LIKE metacharacters so user input is treated as literal text.
@@ -65,15 +70,13 @@ function createSessionSummarySelects() {
             AND scp.card_name = sc.card_name
           WHERE sc.session_id = s.id
             AND sc.hide_price = 0
-        ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+        ) - ${effectiveSessionDeckCostSql()} * s.total_count
       )
     `.as("netProfit"),
     sql<number>`COALESCE(ss.chaos_to_divine_ratio, snap.chaos_to_divine_ratio, 0)`.as(
       "chaosToDivineRatio",
     ),
-    sql<number>`COALESCE(ss.stacked_deck_chaos_cost, snap.stacked_deck_chaos_cost, 0)`.as(
-      "stackedDeckChaosCost",
-    ),
+    sql<number>`${effectiveSessionDeckCostSql()}`.as("stackedDeckChaosCost"),
   ] as const;
 }
 
@@ -188,6 +191,7 @@ export class SessionsRepository {
       .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
       .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
       .select([
+        sessionDeckPriceSql().as("stackedDeckPriceOverride"),
         "s.id",
         "s.game",
         "s.league_id as leagueId",
@@ -208,7 +212,7 @@ export class SessionsRepository {
         sql<number>`COALESCE(ss.chaos_to_divine_ratio, snap.chaos_to_divine_ratio, 0)`.as(
           "persistedChaosToDivineRatio",
         ),
-        sql<number>`COALESCE(ss.stacked_deck_chaos_cost, snap.stacked_deck_chaos_cost, 0)`.as(
+        sql<number>`${effectiveSessionDeckCostSql()}`.as(
           "persistedStackedDeckChaosCost",
         ),
       ])
@@ -245,6 +249,7 @@ export class SessionsRepository {
             totalDeckCost: persistedTotalDeckCost,
           }
         : undefined,
+      stackedDeckPriceOverride: row.stackedDeckPriceOverride,
     };
   }
 
@@ -372,7 +377,7 @@ export class SessionsRepository {
                 AND scp.card_name = sc2.card_name
               WHERE sc2.session_id = s.id
                 AND sc2.hide_price = 0
-            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+            ) - ${effectiveSessionDeckCostSql()} * s.total_count
           )
         `.as("netProfit"),
         // Chaos to Divine ratios from snapshot
@@ -380,7 +385,7 @@ export class SessionsRepository {
           "chaosToDivineRatio",
         ),
         // Stacked deck chaos cost
-        sql<number>`COALESCE(ss.stacked_deck_chaos_cost, snap.stacked_deck_chaos_cost, 0)`.as(
+        sql<number>`${effectiveSessionDeckCostSql()}`.as(
           "stackedDeckChaosCost",
         ),
       ])
@@ -494,7 +499,7 @@ export class SessionsRepository {
                 AND scp.card_name = sc.card_name
               WHERE sc.session_id = s.id
                 AND sc.hide_price = 0
-            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+            ) - ${effectiveSessionDeckCostSql()} * s.total_count
           )
         `.as("profit"),
         sql<number>`COALESCE(ss.chaos_to_divine_ratio, snap.chaos_to_divine_ratio, 0)`.as(
@@ -514,7 +519,7 @@ export class SessionsRepository {
                     AND scp.card_name = sc.card_name
                   WHERE sc.session_id = s.id
                     AND sc.hide_price = 0
-                ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+                ) - ${effectiveSessionDeckCostSql()} * s.total_count
               ) / COALESCE(ss.chaos_to_divine_ratio, snap.chaos_to_divine_ratio, 1)
             )
             ELSE COALESCE(
@@ -527,7 +532,7 @@ export class SessionsRepository {
                   AND scp.card_name = sc.card_name
                 WHERE sc.session_id = s.id
                   AND sc.hide_price = 0
-              ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+              ) - ${effectiveSessionDeckCostSql()} * s.total_count
             )
           END
         `.as("profitInDivines"),
@@ -748,7 +753,7 @@ export class SessionsRepository {
                 AND scp.card_name = sc.card_name
               WHERE sc.session_id = s.id
                 AND sc.hide_price = 0
-            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+            ) - ${effectiveSessionDeckCostSql()} * s.total_count
           )
         `.as("profit"),
         sql<number>`COALESCE(ss.chaos_to_divine_ratio, snap.chaos_to_divine_ratio, 0)`.as(
@@ -821,7 +826,7 @@ export class SessionsRepository {
                 AND scp.card_name = sc.card_name
               WHERE sc.session_id = s.id
                 AND sc.hide_price = 0
-            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+            ) - ${effectiveSessionDeckCostSql()} * s.total_count
           )
         )`.as("avgProfit"),
         sql<number>`AVG(COALESCE(ss.total_decks_opened, s.total_count))`.as(
@@ -890,15 +895,13 @@ export class SessionsRepository {
                 AND scp.card_name = sc.card_name
               WHERE sc.session_id = s.id
                 AND sc.hide_price = 0
-            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+            ) - ${effectiveSessionDeckCostSql()} * s.total_count
           )
         )`.as("totalProfit"),
         sql<number>`AVG(COALESCE(ss.chaos_to_divine_ratio, snap.chaos_to_divine_ratio, 0))`.as(
           "avgChaosPerDivine",
         ),
-        sql<number>`AVG(COALESCE(snap.stacked_deck_chaos_cost, 0))`.as(
-          "avgDeckCost",
-        ),
+        sql<number>`AVG(${effectiveSessionDeckCostSql()})`.as("avgDeckCost"),
       ])
       .where("s.game", "=", game)
       .where("s.is_active", "=", 0)
@@ -1141,7 +1144,7 @@ export class SessionsRepository {
                 AND scp.card_name = sc.card_name
               WHERE sc.session_id = s.id
                 AND sc.hide_price = 0
-            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+            ) - ${effectiveSessionDeckCostSql()} * s.total_count
           )
         `.as("exchangeNetProfit"),
         sql<number>`COALESCE(ss.chaos_to_divine_ratio, snap.chaos_to_divine_ratio, 0)`.as(
@@ -1235,7 +1238,7 @@ export class SessionsRepository {
                 AND scp.card_name = sc.card_name
               WHERE sc.session_id = s.id
                 AND sc.hide_price = 0
-            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+            ) - ${effectiveSessionDeckCostSql()} * s.total_count
           ) > 0 THEN 1 ELSE 0 END
         )`.as("profitableSessions"),
       ])
@@ -1271,9 +1274,7 @@ export class SessionsRepository {
       .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
       .select([
         "s.id as sessionId",
-        sql<number>`COALESCE(ss.stacked_deck_chaos_cost, snap.stacked_deck_chaos_cost, 0)`.as(
-          "deckCost",
-        ),
+        sql<number>`${effectiveSessionDeckCostSql()}`.as("deckCost"),
       ])
       .where("s.id", "in", sessionIds)
       .execute();
@@ -1489,6 +1490,11 @@ export class SessionsRepository {
         .deleteFrom("sessions")
         .where("id", "in", uniqueSessionIds)
         .executeTakeFirstOrThrow();
+
+      await trx
+        .deleteFrom("app_metadata")
+        .where("key", "in", uniqueSessionIds.map(sessionDeckPriceKey))
+        .execute();
 
       await this.recomputeCardAggregates(trx, game, affectedScopes);
       await this.recomputeTotalStackedDecksOpened(trx);

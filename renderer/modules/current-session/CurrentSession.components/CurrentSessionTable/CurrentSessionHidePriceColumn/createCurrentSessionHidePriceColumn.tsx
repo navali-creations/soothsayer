@@ -1,7 +1,6 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { FiEye } from "react-icons/fi";
 
-import { TableHeader } from "~/renderer/components";
+import SessionPriceVisibilityHeader from "~/renderer/components/Table/SessionPriceVisibilityHeader/SessionPriceVisibilityHeader";
 import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import type { CardEntry } from "~/types/data-stores";
 
@@ -12,14 +11,7 @@ const columnHelper = createColumnHelper<AppTableFeatures, CardEntry>();
 export const createCurrentSessionHidePriceColumn = () => {
   return columnHelper.accessor("name", {
     id: "hidePrice",
-    header: () => (
-      <TableHeader
-        tooltip="Hide anomalous prices from total calculations"
-        className="flex w-full justify-center pl-1"
-      >
-        <FiEye size={14} />
-      </TableHeader>
-    ),
+    header: () => <SessionPriceVisibilityHeader />,
     cell: (cellProps) => <CurrentSessionHidePriceCell {...cellProps} />,
     size: 50,
     enableSorting: false,

@@ -134,6 +134,39 @@ describe("CommunityUploadSlice", () => {
   // ── Helper: put the store into an "authenticated" state ────────────
 
   describe("opening-time consent", () => {
+    it("coalesces overlapping consent reads and skips reads after loading", async () => {
+      const response = Promise.withResolvers<{
+        success: true;
+        consent: boolean;
+      }>();
+      mockGetDropContextConsent.mockReturnValueOnce(response.promise);
+      const reading = store
+        .getState()
+        .communityUpload.fetchDropContextConsent();
+      await store.getState().communityUpload.fetchDropContextConsent();
+      expect(mockGetDropContextConsent).toHaveBeenCalledTimes(1);
+      response.resolve({ success: true, consent: false });
+      await reading;
+      await store.getState().communityUpload.fetchDropContextConsent();
+      expect(mockGetDropContextConsent).toHaveBeenCalledTimes(1);
+      expect(store.getState().communityUpload.dropContextConsent).toBe(false);
+    });
+
+    it("allows retry after an unsuccessful consent response", async () => {
+      mockGetDropContextConsent.mockResolvedValueOnce({ success: false });
+      await store.getState().communityUpload.fetchDropContextConsent();
+      expect(store.getState().communityUpload.dropContextConsentLoaded).toBe(
+        false,
+      );
+      expect(
+        store.getState().communityUpload.dropContextConsentError,
+      ).toContain("could not be loaded");
+      await store.getState().communityUpload.fetchDropContextConsent();
+      expect(store.getState().communityUpload.dropContextConsentLoaded).toBe(
+        true,
+      );
+    });
+
     it.each([null, false, true])(
       "loads explicit choice %j",
       async (consent) => {
@@ -413,6 +446,30 @@ describe("CommunityUploadSlice", () => {
   // ── fetchStatus ────────────────────────────────────────────────────
 
   describe("fetchStatus", () => {
+    it("ignores an older failed status read while a newer read is pending", async () => {
+      const oldResponse = Promise.withResolvers<unknown>();
+      const newResponse = Promise.withResolvers<unknown>();
+      mockGetAuthStatus
+        .mockReturnValueOnce(oldResponse.promise)
+        .mockReturnValueOnce(newResponse.promise);
+      const oldRead = store.getState().communityUpload.fetchStatus();
+      const newRead = store.getState().communityUpload.fetchStatus();
+      oldResponse.reject(new Error("old read failed"));
+      await oldRead;
+      expect(store.getState().communityUpload.isLoadingStatus).toBe(true);
+      newResponse.resolve({
+        authenticated: true,
+        username: "Current",
+        accountId: "current-id",
+      });
+      await newRead;
+      expect(store.getState().communityUpload).toMatchObject({
+        gggAuthenticated: true,
+        gggUsername: "Current",
+        isLoadingStatus: false,
+      });
+    });
+
     it("refreshes verification after background credential loss and ignores an older response", async () => {
       await authenticateStore();
       let finishOld!: (value: unknown) => void;

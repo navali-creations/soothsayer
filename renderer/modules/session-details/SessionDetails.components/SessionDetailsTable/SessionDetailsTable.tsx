@@ -1,133 +1,55 @@
-import type { CellContext } from "@tanstack/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
-import { useId, useMemo } from "react";
-import { FiEye, FiEyeOff } from "react-icons/fi";
+import { useMemo } from "react";
 
-import { DivinationCard, Table } from "~/renderer/components";
-import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
+import { Table } from "~/renderer/components";
+import SessionCardName from "~/renderer/components/Table/cells/SessionCardName/SessionCardName";
+import SessionCountValue from "~/renderer/components/Table/cells/SessionCountValue/SessionCountValue";
+import SessionPriceValue from "~/renderer/components/Table/cells/SessionPriceValue/SessionPriceValue";
+import SessionPriceVisibilityButton from "~/renderer/components/Table/cells/SessionPriceVisibilityButton/SessionPriceVisibilityButton";
+import SessionRatioValue from "~/renderer/components/Table/cells/SessionRatioValue/SessionRatioValue";
+import SessionPriceVisibilityHeader from "~/renderer/components/Table/SessionPriceVisibilityHeader/SessionPriceVisibilityHeader";
 import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
 import Tooltip from "~/renderer/components/Tooltip/Tooltip";
-import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
 import { useSessionDetails } from "~/renderer/store";
-import { formatCurrency } from "~/renderer/utils";
-import type { CardEntry as GlobalCardEntry } from "~/types/data-stores";
 
 import type { CardEntry } from "../../SessionDetails.types";
-
-// Card name cell with popover
-const SessionCardNameCell = ({
-  info,
-}: {
-  info: CellContext<AppTableFeatures, CardEntry, string>;
-}) => {
-  const popoverId = useId();
-  const row = info.row.original;
-  const isHidden = row.hidePrice || false;
-  const hasCardData = !!row.divinationCard;
-
-  const { triggerRef, popoverRef } = usePopover({
-    placement: "right",
-    offset: 8,
-    scale: 0.75,
-  });
-
-  // Convert to GlobalCardEntry format for DivinationCard component
-  const cardEntry: GlobalCardEntry | null = hasCardData
-    ? {
-        name: row.name,
-        count: row.count,
-        processedIds: [],
-        divinationCard: row.divinationCard,
-      }
-    : null;
-
-  return (
-    <>
-      <span
-        ref={hasCardData ? triggerRef : null}
-        className={isHidden ? "opacity-40 line-through" : ""}
-      >
-        <CardNameLink
-          cardName={info.getValue()}
-          className={isHidden ? "opacity-40 line-through" : ""}
-        />
-        {isHidden && (
-          <span className="badge badge-error badge-xs ml-2">Hidden</span>
-        )}
-      </span>
-
-      {hasCardData && cardEntry && (
-        <div
-          id={popoverId}
-          ref={popoverRef}
-          popover="manual"
-          className="p-0 border-0 bg-transparent"
-        >
-          <DivinationCard card={cardEntry} />
-        </div>
-      )}
-    </>
-  );
-};
 
 const columnHelper = createColumnHelper<AppTableFeatures, CardEntry>();
 
 const SessionDetailsTable = () => {
-  const { getCardData, getPriceData, toggleCardPriceVisibility } =
-    useSessionDetails();
-
+  const { getCardData } = useSessionDetails();
   const cardData = getCardData();
-  const { chaosToDivineRatio } = getPriceData();
-
   const columns = useMemo(
     () => [
-      // Visibility toggle column
       columnHelper.display({
         id: "visibility",
-        header: () => (
-          <Tooltip as="div" content="Toggle price visibility (affects totals)">
-            <FiEye className="opacity-50" />
-          </Tooltip>
+        size: 50,
+        header: () => <SessionPriceVisibilityHeader />,
+        cell: ({ row }) => (
+          <SessionPriceVisibilityButton
+            kind="details"
+            cardName={row.original.name}
+            hidden={row.original.hidePrice ?? false}
+          />
         ),
-        cell: (info) => {
-          const row = info.row.original;
-          const isHidden = row.hidePrice || false;
-          const tooltip = isHidden
-            ? "Click to include in totals"
-            : "Click to exclude from totals";
-
-          return (
-            <Tooltip as="div" content={tooltip} describeChild>
-              <button
-                aria-label={tooltip}
-                className="btn btn-ghost btn-xs"
-                onClick={() => toggleCardPriceVisibility(row.name)}
-              >
-                {isHidden ? (
-                  <FiEyeOff className="text-error" />
-                ) : (
-                  <FiEye className="text-success" />
-                )}
-              </button>
-            </Tooltip>
-          );
-        },
       }),
       columnHelper.accessor("name", {
         header: "Card Name",
-        cell: (info) => <SessionCardNameCell info={info} />,
+        cell: ({ row }) => (
+          <SessionCardName
+            card={row.original}
+            hidden={row.original.hidePrice ?? false}
+          />
+        ),
       }),
       columnHelper.accessor("count", {
         header: "Count",
-        cell: (info) => {
-          const row = info.row.original;
-          const isHidden = row.hidePrice || false;
-          return (
-            <div className={`badge badge-soft ${isHidden ? "opacity-40" : ""}`}>
-              {info.getValue()}
-            </div>
-          );
-        },
+        cell: ({ row, getValue }) => (
+          <SessionCountValue
+            count={getValue()}
+            hidden={row.original.hidePrice}
+          />
+        ),
       }),
       columnHelper.accessor("ratio", {
         header: () => (
@@ -138,52 +60,36 @@ const SessionDetailsTable = () => {
             Ratio
           </Tooltip>
         ),
-        cell: (info) => {
-          const row = info.row.original;
-          const isHidden = row.hidePrice || false;
-          return (
-            <span className={`tabular-nums ${isHidden ? "opacity-40" : ""}`}>
-              {info.getValue().toFixed(2)}%
-            </span>
-          );
-        },
+        cell: ({ row, getValue }) => (
+          <SessionRatioValue
+            ratio={getValue()}
+            hidden={row.original.hidePrice}
+          />
+        ),
       }),
       columnHelper.accessor("chaosValue", {
         header: "Chaos Value",
-        cell: (info) => {
-          const row = info.row.original;
-          const isHidden = row.hidePrice || false;
-          const value = info.getValue();
-          return (
-            <span
-              className={`tabular-nums ${isHidden ? "opacity-40" : ""} ${
-                value === 0 ? "text-base-content/30" : ""
-              }`}
-            >
-              {value === 0 ? "—" : formatCurrency(value, chaosToDivineRatio)}
-            </span>
-          );
-        },
+        cell: ({ row, getValue }) => (
+          <SessionPriceValue
+            kind="details"
+            value={getValue()}
+            hidden={row.original.hidePrice}
+          />
+        ),
       }),
       columnHelper.accessor("totalValue", {
         header: "Total Value",
-        cell: (info) => {
-          const row = info.row.original;
-          const isHidden = row.hidePrice || false;
-          const value = info.getValue();
-          return (
-            <span
-              className={`font-semibold tabular-nums ${
-                isHidden ? "opacity-40" : "text-success"
-              } ${value === 0 ? "text-base-content/30" : ""}`}
-            >
-              {value === 0 ? "—" : formatCurrency(value, chaosToDivineRatio)}
-            </span>
-          );
-        },
+        cell: ({ row, getValue }) => (
+          <SessionPriceValue
+            kind="details"
+            value={getValue()}
+            hidden={row.original.hidePrice}
+            total
+          />
+        ),
       }),
     ],
-    [chaosToDivineRatio, toggleCardPriceVisibility],
+    [],
   );
 
   if (cardData.length === 0) {

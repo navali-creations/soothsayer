@@ -18,6 +18,110 @@ describe("CurrentSessionRepository", () => {
     CurrentSessionRepository,
   );
 
+  describe("Stacked Deck price override", () => {
+    it("stores nullable per-game preferences and independent session prices", () => {
+      const repository = getRepository();
+      const db = getTestDb().db;
+      expect(repository.getStackedDeckPriceOverride(db, "poe1")).toBeNull();
+      repository.saveStackedDeckPriceOverride(
+        db,
+        "poe1",
+        2.25,
+        "first-session",
+      );
+      repository.saveStackedDeckPriceOverride(db, "poe1", 0, "second-session");
+      expect(repository.getStackedDeckPriceOverride(db, "poe1")).toBe(0);
+      expect(repository.getStackedDeckPriceOverride(db, "poe2")).toBeNull();
+      expect(
+        db
+          .prepare("SELECT value FROM app_metadata WHERE key = ?")
+          .get("session:stacked-deck-price:first-session"),
+      ).toEqual({ value: "2.25" });
+      repository.saveStackedDeckPriceOverride(
+        db,
+        "poe1",
+        null,
+        "second-session",
+      );
+      expect(repository.getStackedDeckPriceOverride(db, "poe1")).toBeNull();
+      expect(
+        db
+          .prepare("SELECT value FROM app_metadata WHERE key = ?")
+          .get("session:stacked-deck-price:second-session"),
+      ).toBeUndefined();
+    });
+
+    it("rolls back both the preference and session cost if either write fails", () => {
+      const db = getTestDb().db;
+      db.exec(
+        "CREATE TRIGGER fail_price_save BEFORE INSERT ON app_metadata WHEN NEW.key LIKE 'session:%' BEGIN SELECT RAISE(ABORT, 'save failed'); END",
+      );
+      expect(() =>
+        getRepository().saveStackedDeckPriceOverride(
+          db,
+          "poe1",
+          2.25,
+          "failed-session",
+        ),
+      ).toThrow("save failed");
+      expect(
+        getRepository().getStackedDeckPriceOverride(db, "poe1"),
+      ).toBeNull();
+    });
+  });
+
+  describe("card price threshold", () => {
+    it("defaults to zero and stores separate thresholds for each game", () => {
+      const repository = getRepository();
+      const db = getTestDb().db;
+      expect(repository.getCardPriceThreshold(db, "poe1")).toBe(0);
+      repository.saveCardPriceThreshold(db, "poe1", 1.25, null, []);
+      repository.saveCardPriceThreshold(db, "poe2", 4, null, []);
+      expect(repository.getCardPriceThreshold(db, "poe1")).toBe(1.25);
+      expect(repository.getCardPriceThreshold(db, "poe2")).toBe(4);
+    });
+
+    it.each(["-1", "NaN", "Infinity", "invalid"])(
+      "ignores corrupt stored thresholds: %s",
+      (value) => {
+        const db = getTestDb().db;
+        db.prepare("INSERT INTO app_metadata (key, value) VALUES (?, ?)").run(
+          "current-session:hide-below-chaos:poe1",
+          value,
+        );
+        expect(getRepository().getCardPriceThreshold(db, "poe1")).toBe(0);
+      },
+    );
+
+    it("rolls back card visibility changes if saving the threshold fails", async () => {
+      const { db, kysely } = getTestDb();
+      const leagueId = await seedLeague(kysely);
+      await seedSession(kysely, { id: "threshold-rollback", leagueId });
+      await seedSessionCards(kysely, "threshold-rollback", [
+        { cardName: "Rain of Chaos", count: 1 },
+      ]);
+      db.exec(
+        `CREATE TRIGGER fail_threshold_save BEFORE INSERT ON app_metadata BEGIN SELECT RAISE(ABORT, 'save failed'); END`,
+      );
+      expect(() =>
+        getRepository().saveCardPriceThreshold(
+          db,
+          "poe1",
+          2,
+          "threshold-rollback",
+          [{ cardName: "Rain of Chaos", hidePrice: true }],
+        ),
+      ).toThrow("save failed");
+      const card = await kysely
+        .selectFrom("session_cards")
+        .select("hide_price")
+        .where("session_id", "=", "threshold-rollback")
+        .executeTakeFirstOrThrow();
+      expect(card.hide_price).toBe(0);
+      expect(getRepository().getCardPriceThreshold(db, "poe1")).toBe(0);
+    });
+  });
+
   describe("card metadata lookups", () => {
     it("returns null when card-specific rarity rows are absent", async () => {
       await expect(
@@ -290,7 +394,7 @@ describe("CurrentSessionRepository", () => {
       const leagueId = await seedLeague(getTestDb().kysely);
       const snapshotId = await seedSnapshot(getTestDb().kysely, { leagueId });
 
-      await getRepository().createSession({
+      await getRepository().createSession(getTestDb().db, {
         id: "session-1",
         game: "poe1",
         leagueId,
@@ -314,7 +418,7 @@ describe("CurrentSessionRepository", () => {
       const leagueId = await seedLeague(getTestDb().kysely);
       const snapshotId = await seedSnapshot(getTestDb().kysely, { leagueId });
 
-      await getRepository().createSession({
+      await getRepository().createSession(getTestDb().db, {
         id: "session-active",
         game: "poe1",
         leagueId,
@@ -346,7 +450,7 @@ describe("CurrentSessionRepository", () => {
         leagueId: poe2LeagueId,
       });
 
-      await getRepository().createSession({
+      await getRepository().createSession(getTestDb().db, {
         id: "session-poe1",
         game: "poe1",
         leagueId: poe1LeagueId,
@@ -354,7 +458,7 @@ describe("CurrentSessionRepository", () => {
         startedAt: "2025-01-15T10:00:00Z",
       });
 
-      await getRepository().createSession({
+      await getRepository().createSession(getTestDb().db, {
         id: "session-poe2",
         game: "poe2",
         leagueId: poe2LeagueId,
@@ -1393,7 +1497,7 @@ describe("CurrentSessionRepository", () => {
       const snapshotId = await seedSnapshot(getTestDb().kysely, { leagueId });
 
       // 1. Create session
-      await getRepository().createSession({
+      await getRepository().createSession(getTestDb().db, {
         id: "lifecycle-session",
         game: "poe1",
         leagueId,
@@ -1529,7 +1633,7 @@ describe("CurrentSessionRepository", () => {
       });
 
       // First session
-      await getRepository().createSession({
+      await getRepository().createSession(getTestDb().db, {
         id: "session-first",
         game: "poe1",
         leagueId,
@@ -1553,7 +1657,7 @@ describe("CurrentSessionRepository", () => {
       });
 
       // Second session
-      await getRepository().createSession({
+      await getRepository().createSession(getTestDb().db, {
         id: "session-second",
         game: "poe1",
         leagueId,

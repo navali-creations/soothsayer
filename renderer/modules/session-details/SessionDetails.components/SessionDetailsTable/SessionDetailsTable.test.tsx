@@ -13,6 +13,12 @@ vi.mock("~/renderer/store", async () => {
   return createStoreMock();
 });
 
+vi.mock("~/renderer/components/DivinationCard/DivinationCard", () => ({
+  default: ({ card }: any) => (
+    <div data-testid={`divination-card-${card.name}`} />
+  ),
+}));
+
 vi.mock("~/renderer/components/CardNameLink/CardNameLink", () => ({
   default: ({ cardName, className }: any) => (
     <span data-testid={`card-name-link-${cardName}`} className={className}>
@@ -150,7 +156,11 @@ function createMockSessionDetails(overrides: any = {}) {
 
 function setupStore(overrides: any = {}) {
   const store = createMockSessionDetails(overrides);
-  mockUseBoundStore.mockReturnValue({ sessionDetails: store } as any);
+  mockUseBoundStore.mockImplementation((selector) =>
+    selector
+      ? selector({ sessionDetails: store } as any)
+      : ({ sessionDetails: store } as any),
+  );
   return store;
 }
 

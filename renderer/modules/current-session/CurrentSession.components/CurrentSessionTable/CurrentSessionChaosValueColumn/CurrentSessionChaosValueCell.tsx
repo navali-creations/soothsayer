@@ -1,25 +1,19 @@
 import type { CellContext } from "@tanstack/react-table";
 
+import SessionPriceValue from "~/renderer/components/Table/cells/SessionPriceValue/SessionPriceValue";
 import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
-import { useCurrentSession } from "~/renderer/store";
-import { formatCurrency } from "~/renderer/utils";
 import type { CardEntry } from "~/types/data-stores";
 
 const CurrentSessionChaosValueCell = (
   cellProps: CellContext<AppTableFeatures, CardEntry, number>,
 ) => {
-  const { getChaosToDivineRatio } = useCurrentSession();
-  const chaosToDivineRatio = getChaosToDivineRatio();
-
-  const priceInfo = cellProps.row.original.price;
-  const value = priceInfo?.chaosValue ?? 0;
-  const hidePrice = priceInfo?.hidePrice || false;
-
-  if (value === 0) return <span className="text-base-content/50">N/A</span>;
+  const price = cellProps.row.original.price;
   return (
-    <div className={`badge badge-soft ${hidePrice ? "opacity-50" : ""}`}>
-      {formatCurrency(value, chaosToDivineRatio)}
-    </div>
+    <SessionPriceValue
+      kind="current"
+      value={price?.chaosValue ?? 0}
+      hidden={price?.hidePrice ?? false}
+    />
   );
 };
 

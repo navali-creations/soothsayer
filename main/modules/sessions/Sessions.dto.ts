@@ -40,6 +40,7 @@ export interface SessionDetailsDTO {
   totalCount: number;
   isActive: boolean;
   persistedTotals?: SessionTotals;
+  stackedDeckPriceOverride?: number | null;
 }
 
 export interface SessionCardDetailsDTO {

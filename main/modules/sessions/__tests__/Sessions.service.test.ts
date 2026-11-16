@@ -123,6 +123,65 @@ describe("SessionsService", () => {
   // ─── getSessionById ─────────────────────────────────────────────────────
 
   describe("getSessionById", () => {
+    it.each([2.25, 0])(
+      "uses a session's deck price override instead of snapshot pricing: %s",
+      async (deckPrice) => {
+        const leagueId = await seedLeague(testDb.kysely);
+        const snapshotId = await seedSnapshot(testDb.kysely, { leagueId });
+        const sessionId = await seedSession(testDb.kysely, {
+          leagueId,
+          snapshotId,
+          totalCount: 2,
+        });
+        await seedSessionCards(testDb.kysely, sessionId, [
+          { cardName: "The Doctor", count: 2 },
+        ]);
+        testDb.db
+          .prepare("INSERT INTO app_metadata (key, value) VALUES (?, ?)")
+          .run(`session:stacked-deck-price:${sessionId}`, String(deckPrice));
+        mockLoadSnapshot.mockResolvedValue(
+          buildPriceSnapshot({
+            stackedDeckChaosCost: 5,
+            cardPrices: { "The Doctor": { chaosValue: 100, divineValue: 0.5 } },
+          }),
+        );
+        const result = await service.getSessionById(sessionId);
+        expect(result?.priceSnapshot?.stackedDeckChaosCost).toBe(5);
+        expect(result?.totals).toMatchObject({
+          stackedDeckChaosCost: deckPrice,
+          totalDeckCost: deckPrice * 2,
+          netProfit: 200 - deckPrice * 2,
+        });
+      },
+    );
+
+    it("uses a saved summary's deck price even while the original snapshot remains available", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const snapshotId = await seedSnapshot(testDb.kysely, { leagueId });
+      const sessionId = await seedSession(testDb.kysely, {
+        leagueId,
+        snapshotId,
+        totalCount: 2,
+      });
+      await seedSessionCards(testDb.kysely, sessionId, [
+        { cardName: "The Doctor", count: 2 },
+      ]);
+      await seedSessionSummary(testDb.kysely, {
+        sessionId,
+        totalDecksOpened: 2,
+        stackedDeckChaosCost: 1.5,
+      });
+      testDb.db
+        .prepare("INSERT INTO app_metadata (key, value) VALUES (?, ?)")
+        .run(`session:stacked-deck-price:${sessionId}`, "2.25");
+      mockLoadSnapshot.mockResolvedValue(
+        buildPriceSnapshot({ stackedDeckChaosCost: 5 }),
+      );
+      expect(
+        (await service.getSessionById(sessionId))?.totals?.stackedDeckChaosCost,
+      ).toBe(1.5);
+    });
+
     it("should return null for a non-existent session", async () => {
       const result = await service.getSessionById("non-existent-id");
       expect(result).toBeNull();

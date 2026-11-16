@@ -6,6 +6,7 @@ import { app, ipcMain } from "electron";
 import { estimateAppPerformanceStorageBytes } from "~/main/modules/app-performance/AppPerformance.utils";
 import { CommunityIdentityRepository } from "~/main/modules/community-upload/CommunityIdentity.repository";
 import { DatabaseService } from "~/main/modules/database";
+import { SESSION_DECK_PRICE_PREFIX } from "~/main/modules/sessions/Sessions.utils/Sessions.utils";
 import {
   assertLeagueId,
   assertTrustedSender,
@@ -584,6 +585,11 @@ class StorageService {
         ).run(leagueId);
 
         // 4. sessions WHERE league_id
+        db.prepare(`
+          DELETE FROM app_metadata WHERE key IN (
+            SELECT ? || id FROM sessions WHERE league_id = ?
+          )
+        `).run(SESSION_DECK_PRICE_PREFIX, leagueId);
         db.prepare("DELETE FROM sessions WHERE league_id = ?").run(leagueId);
 
         // 5. snapshots WHERE league_id

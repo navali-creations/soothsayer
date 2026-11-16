@@ -794,7 +794,7 @@ class GggAuthService {
   public logout(): Promise<void> {
     if (this.logoutJob) return this.logoutJob;
     const job = this.unlinkAndLogout().finally(() => {
-      if (this.logoutJob === job) this.logoutJob = null;
+      this.logoutJob = null;
     });
     this.logoutJob = job;
     return job;

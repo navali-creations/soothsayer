@@ -36,6 +36,7 @@ import {
   waitForOverlayState,
 } from "../helpers/overlay";
 import {
+  dbExec,
   injectCardDrops,
   seedLeagueCache,
   seedSessionPrerequisites,
@@ -148,6 +149,84 @@ test.describe("Current Session", () => {
   // ── Inactive Session State ────────────────────────────────────────────────
 
   test.describe("Inactive Session State", () => {
+    test("should keep the threshold input available while idle and remember its value after reload", async ({
+      page,
+    }) => {
+      const input = page.getByRole("spinbutton", {
+        name: "Threshold",
+      });
+      await expect(input).toBeEnabled();
+      await expect(
+        page
+          .getByRole("group", { name: "Session statistics" })
+          .getByText("Stacked Decks Opened", { exact: true }),
+      ).toBeVisible();
+      await page.getByText("Threshold", { exact: true }).hover();
+      await expect(page.getByRole("tooltip")).toContainText(
+        "Excludes cards worth less than this chaos value from session totals and profit.",
+      );
+      await input.hover();
+      await expect(page.locator("main .stats .stat")).toHaveCount(5);
+      await expect(
+        page
+          .getByRole("group", { name: "Session statistics" })
+          .locator(".stat"),
+      ).toHaveCount(4);
+      await expect(
+        page
+          .getByRole("group", { name: "Session pricing controls" })
+          .locator(".stat"),
+      ).toHaveCount(1);
+      await expect(
+        page.getByRole("group", { name: "Session pricing controls" }),
+      ).toContainText("Threshold");
+      await expect(
+        page.getByRole("textbox", {
+          name: "Override Deck Price",
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      await expect(page.getByText("Unique Cards", { exact: true })).toHaveCount(
+        0,
+      );
+      try {
+        await input.fill("1.25");
+        await expect
+          .poll(() =>
+            callElectronAPI<number>(
+              page,
+              "session",
+              "getCardPriceThreshold",
+              "poe1",
+            ),
+          )
+          .toBe(1.25);
+        await page.reload();
+        await waitForHydration(page, 30_000);
+        await expect(
+          page.getByRole("spinbutton", {
+            name: "Threshold",
+          }),
+        ).toHaveValue("1.25");
+      } finally {
+        await page
+          .getByRole("spinbutton", {
+            name: "Threshold",
+          })
+          .fill("");
+        await expect
+          .poll(() =>
+            callElectronAPI<number>(
+              page,
+              "session",
+              "getCardPriceThreshold",
+              "poe1",
+            ),
+          )
+          .toBe(0);
+      }
+    });
+
     test("should show inactive session state by default", async ({ page }) => {
       // On a fresh install with no active session, the page should show
       // some form of inactive/idle state messaging.
@@ -403,6 +482,20 @@ test.describe("Current Session", () => {
     ];
 
     test.afterEach(async ({ page }) => {
+      await callElectronAPI(
+        page,
+        "session",
+        "setCardPriceThreshold",
+        "poe1",
+        0,
+      );
+      await callElectronAPI(
+        page,
+        "session",
+        "setStackedDeckPriceOverride",
+        "poe1",
+        null,
+      );
       await stopTestSession(page);
       await ensureOverlayHidden(page);
     });
@@ -440,6 +533,197 @@ test.describe("Current Session", () => {
 
       // Verify the UI table renders the injected cards
       await verifyCardsInTable(page, FIVE_RARITY_CARDS);
+    });
+
+    test("should exclude cards below the threshold and restore them when cleared", async ({
+      app,
+      page,
+    }) => {
+      const sessionId = await startTestSession(page);
+      await injectCardDrops(page, sessionId, ["Rain of Chaos", "The Doctor"], {
+        app,
+      });
+      const input = page.getByRole("spinbutton", {
+        name: "Threshold",
+      });
+      const getCurrent = () =>
+        callElectronAPI<{
+          totalCount: number;
+          cards: Array<{
+            name: string;
+            price?: { chaosValue: number; hidePrice: boolean };
+          }>;
+          totals: { totalValue: number };
+        }>(page, "session", "getCurrent", "poe1");
+      const before = await getCurrent();
+      const rainPrice = before.cards.find(
+        (card) => card.name === "Rain of Chaos",
+      )!.price!.chaosValue;
+      const doctorPrice = before.cards.find(
+        (card) => card.name === "The Doctor",
+      )!.price!.chaosValue;
+      expect(doctorPrice).toBeGreaterThan(rainPrice + 0.01);
+      await input.fill(String(rainPrice + 0.01));
+      await expect
+        .poll(
+          async () =>
+            (await getCurrent()).cards.find(
+              (card) => card.name === "Rain of Chaos",
+            )?.price?.hidePrice,
+        )
+        .toBe(true);
+      const filtered = await getCurrent();
+      expect(filtered.totalCount).toBe(2);
+      expect(filtered.totals.totalValue).toBe(doctorPrice);
+      await expect(
+        page
+          .getByRole("row")
+          .filter({ hasText: "Rain of Chaos" })
+          .getByRole("button", { name: "Click to include in totals" }),
+      ).toBeVisible();
+      await expect(
+        page
+          .getByRole("row")
+          .filter({ hasText: "Rain of Chaos" })
+          .getByText("Hidden", { exact: true }),
+      ).toBeVisible();
+      await input.fill("");
+      await expect
+        .poll(async () => (await getCurrent()).totals.totalValue)
+        .toBe(before.totals.totalValue);
+      await expect(
+        page
+          .getByRole("row")
+          .filter({ hasText: "Rain of Chaos" })
+          .getByRole("button", { name: "Click to exclude from totals" }),
+      ).toBeVisible();
+      await expect(
+        page
+          .getByRole("row")
+          .filter({ hasText: "Rain of Chaos" })
+          .getByText("Hidden", { exact: true }),
+      ).toHaveCount(0);
+    });
+
+    test("should retry a failed deck price when restarting after an external session stop", async ({
+      page,
+    }) => {
+      await startTestSession(page);
+      await dbExec(
+        page,
+        `CREATE TEMP TRIGGER e2e_fail_deck_price BEFORE INSERT ON main.app_metadata
+        WHEN NEW.key = 'current-session:stacked-deck-price:poe1' AND NEW.value = '2.25'
+        BEGIN SELECT RAISE(ABORT, 'e2e price save failure'); END`,
+      );
+      try {
+        const override = page.getByRole("textbox", {
+          name: "Override Deck Price",
+          exact: true,
+        });
+        await override.fill("2,25");
+        const error = page
+          .getByRole("alert")
+          .filter({ hasText: "Unable to save the deck price" });
+        await expect(error).toBeVisible();
+        await stopTestSession(page);
+        await expect(override).toHaveCount(0);
+        await expect(error).toContainText("Start a session to retry");
+        await dbExec(page, "DROP TRIGGER e2e_fail_deck_price");
+        await page
+          .getByRole("button", { name: "Start Session", exact: true })
+          .click();
+        await waitForSessionState(page, true);
+        await expect(override).toHaveValue("2.25");
+        await expect
+          .poll(() =>
+            callElectronAPI<number | null>(
+              page,
+              "session",
+              "getStackedDeckPriceOverride",
+              "poe1",
+            ),
+          )
+          .toBe(2.25);
+        await expect(error).toHaveCount(0);
+        await override.fill("");
+        await expect
+          .poll(() =>
+            callElectronAPI<number | null>(
+              page,
+              "session",
+              "getStackedDeckPriceOverride",
+              "poe1",
+            ),
+          )
+          .toBeNull();
+      } finally {
+        await dbExec(page, "DROP TRIGGER IF EXISTS e2e_fail_deck_price");
+      }
+    });
+
+    test("should apply a custom deck price to profit and restore snapshot pricing when cleared", async ({
+      app,
+      page,
+    }) => {
+      const sessionId = await startTestSession(page);
+      await injectCardDrops(page, sessionId, ["The Doctor", "Rain of Chaos"], {
+        app,
+      });
+      const getCurrent = () =>
+        callElectronAPI<{
+          totals: {
+            totalValue: number;
+            netProfit: number;
+            stackedDeckChaosCost: number;
+            totalDeckCost: number;
+          };
+          priceSnapshot: { stackedDeckChaosCost: number };
+        }>(page, "session", "getCurrent", "poe1");
+      const original = await getCurrent();
+      await expect(
+        page
+          .getByRole("group", { name: "Session statistics" })
+          .getByText("Decks Opened", { exact: true }),
+      ).toBeVisible();
+      const input = page.getByRole("textbox", {
+        name: "Override Deck Price",
+        exact: true,
+      });
+      await expect(
+        page.getByText("chaos / deck", { exact: true }),
+      ).toBeVisible();
+      await expect(input).toHaveAttribute(
+        "placeholder",
+        original.priceSnapshot.stackedDeckChaosCost.toFixed(2),
+      );
+      await input.fill("1000");
+      await expect(input).toHaveValue("");
+      await input.fill("2,25");
+      await expect(input).toHaveValue("2,25");
+      await expect
+        .poll(async () => (await getCurrent()).totals.stackedDeckChaosCost)
+        .toBe(2.25);
+      const custom = await getCurrent();
+      expect(custom.totals.totalDeckCost).toBe(4.5);
+      expect(custom.totals.netProfit).toBe(original.totals.totalValue - 4.5);
+      await input.fill("0");
+      await expect
+        .poll(async () => (await getCurrent()).totals.totalDeckCost)
+        .toBe(0);
+      await input.fill("");
+      await expect
+        .poll(async () => (await getCurrent()).totals.stackedDeckChaosCost)
+        .toBe(original.totals.stackedDeckChaosCost);
+      await input.fill("2,25");
+      await page
+        .getByRole("button", { name: "Stop Session", exact: true })
+        .click();
+      await waitForSessionState(page, false);
+      await navigateTo(page, `/sessions/${sessionId}`);
+      const profitCard = page.locator(".stat").filter({
+        has: page.locator(".stat-title").filter({ hasText: /^Net Profit/ }),
+      });
+      await expect(profitCard).toContainText("After 4c deck cost");
     });
 
     test("should accumulate counts when the same card drops multiple times", async ({
@@ -540,15 +824,17 @@ test.describe("Current Session", () => {
       const doctorRow = page
         .locator("table tbody tr")
         .filter({ hasText: "The Doctor" });
-      const priceVisibility = doctorRow.locator('input[type="checkbox"]');
-      await expect(priceVisibility).toBeChecked();
+      const priceVisibility = doctorRow.getByRole("button");
+      await expect(priceVisibility).toHaveAccessibleName(
+        "Click to exclude from totals",
+      );
 
-      await priceVisibility.uncheck();
+      await priceVisibility.click();
       await expect(
         overlayPage.locator('[data-tip="Low confidence price"]'),
       ).toBeVisible({ timeout: 10_000 });
 
-      await priceVisibility.check();
+      await priceVisibility.click();
       await expect(
         overlayPage.locator('[data-tip="Low confidence price"]'),
       ).toHaveCount(0);

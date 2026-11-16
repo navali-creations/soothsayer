@@ -1,10 +1,10 @@
 import { createColumnHelper } from "@tanstack/react-table";
 
-import { TableHeader } from "~/renderer/components";
 import type { AppTableFeatures } from "~/renderer/components/Table/Table.utils";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import type { CardEntry } from "~/types/data-stores";
 
-import CurrentSessionRadioCell from "./CurrentSessionRatioCell";
+import CurrentSessionRatioCell from "./CurrentSessionRatioCell";
 
 const columnHelper = createColumnHelper<AppTableFeatures, CardEntry>();
 
@@ -12,11 +12,14 @@ export const createCurrentSessionRatioColumn = () => {
   return columnHelper.accessor("count", {
     id: "ratio",
     header: () => (
-      <TableHeader tooltip="How often you've found this card compared to all other cards">
+      <Tooltip
+        as="div"
+        content="How often this card appeared compared to all other cards"
+      >
         Ratio
-      </TableHeader>
+      </Tooltip>
     ),
-    cell: (info) => <CurrentSessionRadioCell {...info} />,
+    cell: (info) => <CurrentSessionRatioCell {...info} />,
   });
 };
 

@@ -7,7 +7,12 @@ import type {
 } from "~/main/modules/database";
 import { cleanWikiMarkup } from "~/main/utils/cleanWikiMarkup";
 
-import type { GameType, KnownRarity, Rarity } from "../../../types/data-stores";
+import type {
+  DetailedDivinationCardStats,
+  GameType,
+  KnownRarity,
+  Rarity,
+} from "../../../types/data-stores";
 import type {
   SessionCardDTO,
   SessionCardEventDTO,
@@ -42,6 +47,17 @@ export type { SessionCardJoinedRow };
  * Handles type conversions (e.g., number <-> boolean, string -> GameType)
  */
 export class CurrentSessionMapper {
+  /** Card prices are already attached to rows; omit the market dictionary from IPC. */
+  static toRendererSessionData(
+    session: DetailedDivinationCardStats | null,
+  ): DetailedDivinationCardStats | null {
+    if (!session?.priceSnapshot) return session;
+    return {
+      ...session,
+      priceSnapshot: { ...session.priceSnapshot, cardPrices: {} },
+    };
+  }
+
   /**
    * Convert database session row to DTO
    */

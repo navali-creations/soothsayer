@@ -1134,6 +1134,38 @@ describe("GggAuthService", () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("Logout handler", () => {
+    it("shares an in-flight logout and skips notifications to destroyed windows", async () => {
+      mockStoredSession(MOCK_SESSION);
+      const unlinked = Promise.withResolvers<void>();
+      mockUnlinkGggAccount.mockImplementationOnce(
+        async (clearSession: () => void) => {
+          await unlinked.promise;
+          clearSession();
+        },
+      );
+      const destroyedSend = vi.fn();
+      mockGetAllWindows.mockReturnValue([
+        { isDestroyed: () => true, webContents: { send: destroyedSend } },
+        {
+          isDestroyed: () => false,
+          webContents: { send: mockWebContentsSend },
+        },
+      ]);
+      const service = GggAuthService.getInstance();
+      const first = service.logout();
+      const second = service.logout();
+      expect(second).toBe(first);
+      unlinked.resolve();
+      await Promise.all([first, second]);
+      expect(mockUnlinkGggAccount).toHaveBeenCalledOnce();
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        GggAuthChannel.AuthStatusChanged,
+      );
+      expect(destroyedSend).not.toHaveBeenCalled();
+      await service.logout();
+      expect(mockUnlinkGggAccount).toHaveBeenCalledTimes(2);
+    });
+
     it("preserves a newly linked session when an older decryption fails after unlink", async () => {
       const stored = mockMutableSessionFile(MOCK_SESSION);
       let failOld!: (error: Error) => void;
@@ -1813,6 +1845,123 @@ describe("GggAuthService", () => {
       useDirectEnv();
     });
 
+    it.each([false, true])(
+      "ignores an authorization exchange completing after logout (failed=%s)",
+      async (failed) => {
+        const response =
+          Promise.withResolvers<
+            ReturnType<typeof createSuccessTokenResponse>
+          >();
+        mockFetch.mockReturnValueOnce(response.promise);
+        const service = GggAuthService.getInstance();
+        const { authPromise, getCallbackUrl } =
+          startAuthFlowAndCaptureState(service);
+        const settled = vi.fn();
+        void authPromise.then(settled, settled);
+        const callback = service.handleCallback(getCallbackUrl());
+        await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledOnce());
+        await service.logout();
+        if (failed) response.reject(new Error("late exchange failure"));
+        else response.resolve(createSuccessTokenResponse());
+        await callback;
+        expect(settled).not.toHaveBeenCalled();
+        expect(mockFsWriteFileSync).not.toHaveBeenCalled();
+        expect(mockLinkGggAccount).not.toHaveBeenCalled();
+      },
+    );
+
+    it("does not verify a sign-in whose identity activation finishes after logout", async () => {
+      const stored = mockMutableSessionFile(MOCK_SESSION);
+      const activated = Promise.withResolvers<void>();
+      mockLinkGggAccount.mockReturnValueOnce(activated.promise);
+      mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+      const service = GggAuthService.getInstance();
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+      const settled = vi.fn();
+      void authPromise.then(settled, settled);
+      const callback = service.handleCallback(getCallbackUrl());
+      await vi.waitFor(() => expect(mockLinkGggAccount).toHaveBeenCalledOnce());
+      await service.logout();
+      activated.resolve();
+      await callback;
+      expect(stored()).toBeNull();
+      expect(settled).not.toHaveBeenCalled();
+    });
+
+    it("preserves newer credentials when identity activation completes for an older sign-in", async () => {
+      const stored = mockMutableSessionFile(MOCK_SESSION);
+      const activated = Promise.withResolvers<void>();
+      mockLinkGggAccount.mockReturnValueOnce(activated.promise);
+      mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+      const service = GggAuthService.getInstance();
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+      const failure = expect(authPromise).rejects.toThrow(
+        "Sign-in changed during authentication",
+      );
+      const callback = service.handleCallback(getCallbackUrl());
+      await vi.waitFor(() => expect(mockLinkGggAccount).toHaveBeenCalledOnce());
+      const storage = (
+        service as unknown as {
+          sessionStorage: {
+            save: (session: typeof MOCK_SESSION) => Promise<number | null>;
+          };
+        }
+      ).sessionStorage;
+      await storage.save({ ...MOCK_SESSION, sub: "new-account" });
+      activated.resolve();
+      await callback;
+      await failure;
+      expect(stored()).toMatchObject({ sub: "new-account" });
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+    });
+
+    it.each(["logout", "newer credentials"])(
+      "does not activate an old credential save after %s",
+      async (change) => {
+        const stored = mockMutableSessionFile(MOCK_SESSION);
+        mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+        const service = GggAuthService.getInstance();
+        const storage = (
+          service as unknown as {
+            sessionStorage: {
+              save: (
+                session: typeof MOCK_SESSION,
+                revision?: number,
+              ) => Promise<number | null>;
+            };
+          }
+        ).sessionStorage;
+        const save = storage.save.bind(storage);
+        vi.spyOn(storage, "save").mockImplementationOnce(
+          async (session, revision) => {
+            const saved = await save(session, revision);
+            if (change === "logout") await service.logout();
+            else await save({ ...MOCK_SESSION, sub: "new-account" });
+            return saved;
+          },
+        );
+        const { authPromise, getCallbackUrl } =
+          startAuthFlowAndCaptureState(service);
+        const settled = vi.fn();
+        void authPromise.then(settled, settled);
+        const failure =
+          change === "newer credentials"
+            ? expect(authPromise).rejects.toThrow(
+                "Sign-in changed during authentication",
+              )
+            : null;
+        await service.handleCallback(getCallbackUrl());
+        await failure;
+        expect(mockLinkGggAccount).not.toHaveBeenCalled();
+        if (change === "logout") {
+          expect(stored()).toBeNull();
+          expect(settled).not.toHaveBeenCalled();
+        } else expect(stored()).toMatchObject({ sub: "new-account" });
+      },
+    );
+
     it("exchanges an authorization code directly and links the GGG account", async () => {
       const service = GggAuthService.getInstance();
       mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
@@ -1976,6 +2125,46 @@ describe("GggAuthService", () => {
   });
 
   describe("session storage fallback coverage", () => {
+    it("rejects an obsolete save revision before doing encryption or writing", async () => {
+      const service = GggAuthService.getInstance();
+      const storage = (
+        service as unknown as {
+          sessionStorage: {
+            revision: number;
+            save: (
+              session: typeof MOCK_SESSION,
+              revision?: number,
+            ) => Promise<number | null>;
+            delete: () => void;
+          };
+        }
+      ).sessionStorage;
+      const revision = storage.revision;
+      storage.delete();
+      await expect(storage.save(MOCK_SESSION, revision)).resolves.toBeNull();
+      expect(mockSafeStorageIsAvailable).not.toHaveBeenCalled();
+      expect(mockFsWriteFileSync).not.toHaveBeenCalled();
+    });
+
+    it("does not write plaintext if logout occurs while encryption availability is checked", async () => {
+      vi.stubEnv("NODE_ENV", "development");
+      const availability = Promise.withResolvers<boolean>();
+      mockSafeStorageIsAvailable.mockReturnValueOnce(availability.promise);
+      const service = GggAuthService.getInstance();
+      const storage = (
+        service as unknown as {
+          sessionStorage: {
+            save: (session: typeof MOCK_SESSION) => Promise<number | null>;
+          };
+        }
+      ).sessionStorage;
+      const saving = storage.save(MOCK_SESSION);
+      await service.logout();
+      availability.resolve(false);
+      await expect(saving).resolves.toBeNull();
+      expect(mockFsWriteFileSync).not.toHaveBeenCalled();
+    });
+
     it("does not apply Unix permissions to plaintext storage on Windows", async () => {
       const originalPlatform = process.platform;
       Object.defineProperty(process, "platform", {

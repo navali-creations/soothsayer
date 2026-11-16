@@ -118,10 +118,11 @@ describe("CardNameCell", () => {
     renderWithProviders(<CardNameCell {...ctx} />);
 
     const link = screen.getByTestId("card-name-link");
-    expect(link).toHaveClass("opacity-50", "line-through");
+    expect(link).toHaveClass("opacity-40", "line-through");
+    expect(screen.getByText("Hidden")).toHaveClass("badge-error");
   });
 
-  it("when hidePrice is true: CardNameLink gets 'opacity-50 line-through' className", () => {
+  it("when hidePrice is true: CardNameLink gets 'opacity-40 line-through' className", () => {
     const ctx = createCellContext({
       name: "The Wretched",
       count: 2,
@@ -131,7 +132,7 @@ describe("CardNameCell", () => {
     renderWithProviders(<CardNameCell {...ctx} />);
 
     const link = screen.getByTestId("card-name-link");
-    expect(link).toHaveClass("opacity-50");
+    expect(link).toHaveClass("opacity-40");
     expect(link).toHaveClass("line-through");
   });
 
@@ -145,9 +146,10 @@ describe("CardNameCell", () => {
     renderWithProviders(<CardNameCell {...ctx} />);
 
     const link = screen.getByTestId("card-name-link");
-    expect(link).not.toHaveClass("opacity-50");
+    expect(link).not.toHaveClass("opacity-40");
     expect(link).not.toHaveClass("line-through");
     expect(link).not.toHaveAttribute("class");
+    expect(screen.queryByText("Hidden")).not.toBeInTheDocument();
   });
 
   it("when priceInfo is undefined: hidePrice defaults to false (no line-through)", () => {
@@ -159,8 +161,31 @@ describe("CardNameCell", () => {
     renderWithProviders(<CardNameCell {...ctx} />);
 
     const link = screen.getByTestId("card-name-link");
-    expect(link).not.toHaveClass("opacity-50");
+    expect(link).not.toHaveClass("opacity-40");
     expect(link).not.toHaveClass("line-through");
+    expect(screen.queryByText("Hidden")).not.toBeInTheDocument();
+  });
+
+  it("shows and removes the hidden badge when price visibility changes", () => {
+    const visible = createCellContext({
+      name: "Rain of Chaos",
+      count: 3,
+      price: { hidePrice: false, chaosValue: 1.5 },
+    });
+    const hidden = createCellContext({
+      name: "Rain of Chaos",
+      count: 3,
+      price: { hidePrice: true, chaosValue: 1.5 },
+    });
+    const { rerender } = renderWithProviders(<CardNameCell {...visible} />);
+    expect(screen.queryByText("Hidden")).not.toBeInTheDocument();
+    rerender(<CardNameCell {...hidden} />);
+    const badge = screen.getByText("Hidden");
+    expect(badge).toHaveClass("badge-error", "badge-xs");
+    expect(badge.parentElement).toHaveClass("opacity-40", "line-through");
+    expect(badge).not.toHaveClass("line-through");
+    rerender(<CardNameCell {...visible} />);
+    expect(screen.queryByText("Hidden")).not.toBeInTheDocument();
   });
 
   it("renders DivinationCard with the card entry when divinationCard exists", () => {

@@ -50,9 +50,14 @@ function setupStore(overrides: any = {}) {
   const store = {
     currentSession: {
       getSession: vi.fn(() => overrides.session ?? null),
+      getIsCurrentSessionActive: vi.fn(
+        () => overrides.isActive ?? !!overrides.session,
+      ),
     },
   } as any;
-  mockUseBoundStore.mockReturnValue(store);
+  mockUseBoundStore.mockImplementation((selector?: any) =>
+    selector ? selector(store) : store,
+  );
   return store;
 }
 
@@ -77,5 +82,6 @@ describe("CurrentSessionOpenedDecksStat", () => {
     renderWithProviders(<CurrentSessionOpenedDecksStat />);
 
     expect(screen.getByTestId("stat-value")).toHaveTextContent("42");
+    expect(screen.getByText("Decks Opened")).toBeInTheDocument();
   });
 });
