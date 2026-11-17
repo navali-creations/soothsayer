@@ -1,5 +1,28 @@
 # soothsayer
 
+## 1.2.0
+
+### Minor Changes
+
+- [`c7fd512`](https://github.com/navali-creations/soothsayer/commit/c7fd512b7719a969f616c5bacff76ef3a737e3d2) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** Pricing controls in **Current Session** for hiding low-value card prices and using your own Stacked Deck purchase price.
+
+  Your threshold and deck price choices are remembered separately for Path of Exile 1 and 2 and carried into future sessions.
+
+  - **Threshold:** automatically exclude cards below your chosen chaos value from totals and profit, including existing and new drops. Cards and opening counts stay recorded. Set the threshold to 0 to restore automatically hidden prices; manually hidden cards stay hidden.
+  - **Override Deck Price:** enter the chaos paid per deck during an active session, using a decimal point or comma. Your price is used for profit calculations in the live session, completed sessions, and statistics. Clear it to return to the session's poe.ninja price.
+  - **Session display:** pricing controls replace the **Unique Cards** stat. Active and completed card tables now use matching eye buttons, **Hidden** labels, and formatting.
+  - **Save recovery:** failed price changes stay visible and can be retried, including after the computer wakes from sleep.
+
+### Patch Changes
+
+- [`2a32ffa`](https://github.com/navali-creations/soothsayer/commit/2a32ffa30e0999963c132f0d6d79a47da2913449) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** Updated Path of Exile 1 divination card information for Covens.
+
+  Card rewards, availability, and reference drop weights are refreshed. Artwork now displays correctly for Divine Shard, Energy Sword, and Pearls Before Swine.
+
 ## 1.1.0
 
 ### Minor Changes
