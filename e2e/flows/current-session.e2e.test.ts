@@ -36,7 +36,6 @@ import {
   waitForOverlayState,
 } from "../helpers/overlay";
 import {
-  dbExec,
   injectCardDrops,
   seedLeagueCache,
   seedSessionPrerequisites,
@@ -606,15 +605,42 @@ test.describe("Current Session", () => {
     });
 
     test("should retry a failed deck price when restarting after an external session stop", async ({
+      app,
       page,
     }) => {
       await startTestSession(page);
-      await dbExec(
-        page,
-        `CREATE TEMP TRIGGER e2e_fail_deck_price BEFORE INSERT ON main.app_metadata
-        WHEN NEW.key = 'current-session:stacked-deck-price:poe1' AND NEW.value = '2.25'
-        BEGIN SELECT RAISE(ABORT, 'e2e price save failure'); END`,
-      );
+      const restorePriceHandler = await app.evaluateHandle(({ ipcMain }) => {
+        const channel = "current-session:set-stacked-deck-price-override";
+        const original = (
+          ipcMain as unknown as {
+            _invokeHandlers: Map<
+              string,
+              (
+                event: Electron.IpcMainInvokeEvent,
+                ...args: unknown[]
+              ) => unknown
+            >;
+          }
+        )._invokeHandlers.get(channel);
+        if (!original) throw new Error("Deck price IPC handler is unavailable");
+
+        let restored = false;
+        const restore = () => {
+          if (restored) return;
+          ipcMain.removeHandler(channel);
+          ipcMain.handle(channel, original);
+          restored = true;
+        };
+        // Simulate a failed save through IPC without changing the database schema.
+        ipcMain.removeHandler(channel);
+        ipcMain.handle(channel, (event, game, value) => {
+          if (game === "poe1" && value === 2.25) {
+            return { success: false, error: "e2e price save failure" };
+          }
+          return original(event, game, value);
+        });
+        return restore;
+      });
       try {
         const override = page.getByRole("textbox", {
           name: "Override Deck Price",
@@ -628,7 +654,7 @@ test.describe("Current Session", () => {
         await stopTestSession(page);
         await expect(override).toHaveCount(0);
         await expect(error).toContainText("Start a session to retry");
-        await dbExec(page, "DROP TRIGGER e2e_fail_deck_price");
+        await restorePriceHandler.evaluate((restore) => restore());
         await page
           .getByRole("button", { name: "Start Session", exact: true })
           .click();
@@ -657,7 +683,8 @@ test.describe("Current Session", () => {
           )
           .toBeNull();
       } finally {
-        await dbExec(page, "DROP TRIGGER IF EXISTS e2e_fail_deck_price");
+        await restorePriceHandler.evaluate((restore) => restore());
+        await restorePriceHandler.dispose();
       }
     });
 
