@@ -17,4 +17,4 @@ overrides:
   tmp@<=0.2.3: ">=0.2.4"
 
 minimumReleaseAgeExclude:
-  - "@navali/poe1-divination-cards@3.29.0 || 3.30.2"
+  - "@navali/poe1-divination-cards@3.30.3"
