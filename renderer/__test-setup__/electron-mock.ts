@@ -312,7 +312,6 @@ export function createElectronMock() {
       searchByName: vi.fn().mockResolvedValue({ results: [], total: 0 }),
       getCount: vi.fn().mockResolvedValue(0),
       getStats: vi.fn().mockResolvedValue(null),
-      forceSync: vi.fn().mockResolvedValue({ success: true }),
       updateRarity: vi.fn().mockResolvedValue({ success: true }),
     },
 

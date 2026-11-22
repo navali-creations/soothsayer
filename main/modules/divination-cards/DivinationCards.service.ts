@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
 import { app, ipcMain } from "electron";
 import { type Kysely, sql } from "kysely";
@@ -20,7 +19,6 @@ import {
   assertInteger,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
-import { resolveDevFile } from "~/main/utils/resolve-dev-path";
 import { resolvePoe1CardsJsonPath } from "~/main/utils/resolve-poe1-package-path";
 import { weightToDropRarity } from "~/main/utils/weight-to-rarity";
 import type { Confidence, Rarity } from "~/types/data-stores";
@@ -41,7 +39,7 @@ interface DivinationCardJson {
   art_src: string;
   flavour_html: string;
   is_disabled?: boolean; // from package — only present in cards.json, absent in league-specific files
-  weight?: number; // PL weight (0 for some boss-only cards)
+  weight?: number | null; // https://github.com/navali-creations/fateweaver/releases
   from_boss?: boolean; // explicitly flagged boss-only card
 }
 
@@ -57,8 +55,7 @@ class DivinationCardsService {
   private rarityInsightsRepository: RarityInsightsRepository;
 
   private settingsStore: SettingsStoreService;
-  private readonly poe1CardsJsonPath: string;
-  private readonly poe2CardsJsonPath: string;
+  private readonly leagueInitializations = new Map<string, Promise<void>>();
 
   static getInstance(): DivinationCardsService {
     if (!DivinationCardsService._instance) {
@@ -75,43 +72,9 @@ class DivinationCardsService {
 
     this.settingsStore = SettingsStoreService.getInstance();
 
-    // Determine paths based on whether app is packaged
-    // When packaged, extraResource copies directories to resources/<dirname>/
-    // e.g. ./renderer/assets/poe1 -> resources/poe1/
-    if (app.isPackaged) {
-      this.poe1CardsJsonPath = join(
-        process.resourcesPath,
-        "poe1",
-        "cards.json",
-      );
-      this.poe2CardsJsonPath = join(
-        process.resourcesPath,
-        "poe2",
-        "cards.json",
-      );
-    } else {
-      // In development, app.getAppPath() returns the directory containing
-      // the main entry file. With Electron Forge + Vite this is typically
-      // `.vite/build/` which does NOT contain the renderer assets.
-      // Walk up from appPath until we find the card JSON files,
-      // falling back to appPath itself for non-Vite setups where the assets
-      // are relative to the main entry.
-      const appPath = app.getAppPath();
-      this.poe1CardsJsonPath = resolveDevFile(
-        appPath,
-        join("renderer", "assets", "poe1", "cards.json"),
-      );
-      this.poe2CardsJsonPath = resolveDevFile(
-        appPath,
-        join("renderer", "assets", "poe2", "cards.json"),
-      );
-    }
-
     this.setupIpcHandlers();
 
     this.logger.log(`Service initialized (packaged: ${app.isPackaged})`);
-    this.logger.log(`PoE1 cards path: ${this.poe1CardsJsonPath}`);
-    this.logger.log(`PoE2 cards path: ${this.poe2CardsJsonPath}`);
   }
 
   /**
@@ -126,31 +89,53 @@ class DivinationCardsService {
       );
       const poe1League = league || "Standard";
 
-      // Resolve path — tries cards-<League>.json first, falls back to cards.json
-      const jsonPath = resolvePoe1CardsJsonPath(
-        poe1League,
-        app.isPackaged,
-        process.resourcesPath,
-      );
-      const isLeagueSpecific = jsonPath.includes(`cards-${poe1League}.json`);
-
       // Initialize PoE1 cards
-      await this.initializeGameCards(
-        "poe1",
-        jsonPath,
-        poe1League,
-        isLeagueSpecific,
-      );
-
-      // Initialize PoE2 cards (when available)
-      // await this.initializeGameCards("poe2", this.poe2CardsJsonPath, "Standard", false);
+      await this.ensurePoe1LeagueData(poe1League);
 
       this.logger.log("Successfully initialized all cards");
 
       // Note: Rarities are now updated by Snapshot.service.ts when it fetches price data
       // This avoids duplicate API calls and ensures consistency with snapshot data
     } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        this.logger.warn("POE1 cards file not found, skipping startup import");
+        return;
+      }
       this.logger.error("Failed to initialize:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Import the requested league's bundled wraeclast.cards data once per app run.
+   * On a fresh install, onboarding can select a different league after startup.
+   * Concurrent readers share the import; missing files and failures can retry.
+   */
+  public async ensurePoe1LeagueData(league: string): Promise<void> {
+    let initialization = this.leagueInitializations.get(league);
+    if (!initialization) {
+      const jsonPath = resolvePoe1CardsJsonPath(
+        league,
+        app.isPackaged,
+        process.resourcesPath,
+      );
+      initialization = this.initializeGameCards(
+        "poe1",
+        jsonPath,
+        league,
+        jsonPath.includes(`cards-${league}.json`),
+      );
+      this.leagueInitializations.set(league, initialization);
+    }
+
+    try {
+      await initialization;
+    } catch (error) {
+      this.leagueInitializations.delete(league);
       throw error;
     }
   }
@@ -164,26 +149,17 @@ class DivinationCardsService {
     league: string,
     isLeagueSpecific: boolean,
   ): Promise<void> {
-    try {
-      const cards = this.loadCardsFromJson(jsonPath);
-      await this.syncCards(game, cards, league, isLeagueSpecific);
-      this.logger.log(
-        `Initialized ${game.toUpperCase()} ${league} with ${
-          cards.length
-        } cards (league-specific: ${isLeagueSpecific})`,
+    const cards = this.loadCardsFromJson(jsonPath);
+    await this.syncCards(game, cards, league, isLeagueSpecific);
+    this.logger.log(
+      `Initialized ${game.toUpperCase()} ${league} with ${
+        cards.length
+      } cards (league-specific: ${isLeagueSpecific})`,
+    );
+    if (!isLeagueSpecific && league !== "Standard") {
+      this.logger.warn(
+        `No league-specific JSON for ${league}, using cards.json fallback — pool accuracy will be reduced`,
       );
-      if (!isLeagueSpecific && league !== "Standard") {
-        this.logger.warn(
-          `No league-specific JSON for ${league}, using cards.json fallback — pool accuracy will be reduced`,
-        );
-      }
-    } catch (error) {
-      // If file doesn't exist (like poe2 cards), just log and continue
-      if ((error as any)?.code === "ENOENT") {
-        this.logger.log(`${game.toUpperCase()} cards file not found, skipping`);
-      } else {
-        throw error;
-      }
     }
   }
 
@@ -561,46 +537,6 @@ class DivinationCardsService {
           };
         } catch (error) {
           return handleValidationError(error, DivinationCardsChannel.GetStats);
-        }
-      },
-    );
-
-    ipcMain.handle(
-      DivinationCardsChannel.ForceSync,
-      async (
-        _event,
-        game: "poe1" | "poe2",
-      ): Promise<{ success: boolean } | { success: false; error: string }> => {
-        try {
-          assertGameType(game, DivinationCardsChannel.ForceSync);
-
-          // Resolve league-aware JSON path
-          let jsonPath: string;
-          let league: string;
-          let isLeagueSpecific: boolean;
-
-          if (game === "poe1") {
-            const selectedLeague = await this.settingsStore.get(
-              SettingsKey.SelectedPoe1League,
-            );
-            league = selectedLeague || "Standard";
-            jsonPath = resolvePoe1CardsJsonPath(
-              league,
-              app.isPackaged,
-              process.resourcesPath,
-            );
-            isLeagueSpecific = jsonPath.includes(`cards-${league}.json`);
-          } else {
-            league = "Standard";
-            jsonPath = this.poe2CardsJsonPath;
-            isLeagueSpecific = false;
-          }
-
-          const cards = this.loadCardsFromJson(jsonPath);
-          await this.syncCards(game, cards, league, isLeagueSpecific);
-          return { success: true };
-        } catch (error) {
-          return handleValidationError(error, DivinationCardsChannel.ForceSync);
         }
       },
     );

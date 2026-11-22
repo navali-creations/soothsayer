@@ -14,7 +14,7 @@
  * - Uses `seedSessionPrerequisites` to populate a league, snapshot, and sample
  *   card prices so the page has data to render
  * - Summary card values depend on seeded snapshot data; table population also
- *   requires Prohibited Library weights. Tests that depend on specific UI
+ *   requires bundled wraeclast.cards weights. Tests that depend on specific UI
  *   elements degrade gracefully when those elements are absent.
  *
  * @module e2e/flows/profit-forecast/profit-forecast-interactions

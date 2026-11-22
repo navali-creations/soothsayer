@@ -17,6 +17,8 @@ const {
   mockLoggerLog,
   mockLoggerError,
   mockKyselySelectFrom,
+  mockEnsurePoe1LeagueData,
+  mockGetCachedLeague,
 } = vi.hoisted(() => {
   const mockKyselySelectFrom = vi.fn();
 
@@ -27,6 +29,8 @@ const {
     mockLoggerLog: vi.fn(),
     mockLoggerError: vi.fn(),
     mockKyselySelectFrom,
+    mockEnsurePoe1LeagueData: vi.fn(),
+    mockGetCachedLeague: vi.fn(),
   };
 });
 
@@ -39,6 +43,18 @@ vi.mock("electron", () => createElectronMock({ mockIpcHandle }));
 vi.mock("~/main/modules/database", () =>
   createDatabaseServiceMock({ mockGetKysely }),
 );
+
+vi.mock("~/main/modules/divination-cards/DivinationCards.service", () => ({
+  DivinationCardsService: {
+    getInstance: () => ({ ensurePoe1LeagueData: mockEnsurePoe1LeagueData }),
+  },
+}));
+
+vi.mock("~/main/modules/poe-leagues/PoeLeagues.repository", () => ({
+  PoeLeaguesRepository: class {
+    getLeague = mockGetCachedLeague;
+  },
+}));
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
 
@@ -281,6 +297,8 @@ describe("ProfitForecastService", () => {
 
     // Default mock returns
     mockSettingsGet.mockResolvedValue("Keepers");
+    mockEnsurePoe1LeagueData.mockResolvedValue(undefined);
+    mockGetCachedLeague.mockResolvedValue({ isActive: true });
 
     service = ProfitForecastService.getInstance();
   });
@@ -942,14 +960,14 @@ describe("ProfitForecastService", () => {
       expect(result.rows).toHaveLength(0);
     });
 
-    it("should return empty weights and log error when availability query throws", async () => {
+    it("propagates availability failures instead of returning empty weights", async () => {
       chains.availabilityChain.execute.mockRejectedValue(
         new Error("Database corrupted"),
       );
 
-      const result = await service.getData("poe1", "Keepers");
-
-      expect(result.rows).toHaveLength(0);
+      await expect(service.getData("poe1", "Keepers")).rejects.toThrow(
+        "Database corrupted",
+      );
       expect(mockLoggerError).toHaveBeenCalled();
     });
 
@@ -1147,6 +1165,60 @@ describe("ProfitForecastService", () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe("IPC handler integration", () => {
+    it.each([null, { isActive: false }])(
+      "rejects an unknown or inactive league before any import (%j)",
+      async (cachedLeague) => {
+        mockGetCachedLeague.mockResolvedValue(cachedLeague);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          ProfitForecastChannel.GetData,
+        );
+
+        const result = await handler({}, "poe1", "Unknown League");
+
+        expect(result).toEqual({
+          success: false,
+          error:
+            "Invalid input: Select an active league to load the profit forecast.",
+        });
+        expect(mockGetCachedLeague).toHaveBeenCalledWith(
+          "poe1",
+          "Unknown League",
+        );
+        expect(mockEnsurePoe1LeagueData).not.toHaveBeenCalled();
+        expect(mockKyselySelectFrom).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(["Standard", "Hardcore"])(
+      "allows permanent league %s without cached challenge leagues",
+      async (league) => {
+        mockGetCachedLeague.mockResolvedValue(null);
+
+        const result = await service.getData("poe1", league);
+
+        expect(result.rows).toHaveLength(3);
+        expect(mockGetCachedLeague).not.toHaveBeenCalled();
+        expect(mockEnsurePoe1LeagueData).toHaveBeenCalledWith(league);
+      },
+    );
+
+    it("sanitizes import failures and allows the next request to retry", async () => {
+      mockEnsurePoe1LeagueData.mockRejectedValueOnce(
+        new Error("ENOENT: C:/private/user/card-data.json"),
+      );
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
+
+      expect(await handler({}, "poe1", "Covens")).toEqual({
+        success: false,
+        error: "Unable to load profit forecast data. Please try again.",
+      });
+      expect((await handler({}, "poe1", "Covens")).rows).toHaveLength(3);
+    });
+
     it("should return full data through the IPC handler", async () => {
       const handler = getIpcHandler(
         mockIpcHandle,
@@ -1399,7 +1471,44 @@ describe("ProfitForecastService", () => {
   // Weights use the league passed to getData directly
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("PL weights are league-independent (use metadata league)", () => {
+  describe("bundled weights use the requested league", () => {
+    it("waits for the requested league import before reading weights", async () => {
+      let completeImport: () => void = () => {};
+      mockEnsurePoe1LeagueData.mockReturnValue(
+        new Promise<void>((resolve) => {
+          completeImport = resolve;
+        }),
+      );
+
+      const pending = service.getData("poe1", "Covens");
+
+      await vi.waitFor(() => {
+        expect(mockEnsurePoe1LeagueData).toHaveBeenCalledWith("Covens");
+      });
+      expect(mockEnsurePoe1LeagueData).toHaveBeenCalledWith("Covens");
+      expect(chains.availabilityChain.execute).not.toHaveBeenCalled();
+      completeImport();
+
+      const result = await pending;
+      expect(result.rows).toHaveLength(3);
+    });
+
+    it("allows an import failure to be retried by the next request", async () => {
+      mockEnsurePoe1LeagueData.mockRejectedValueOnce(new Error("Read failed"));
+
+      await expect(service.getData("poe1", "Covens")).rejects.toThrow(
+        "Read failed",
+      );
+      expect(mockLoggerError).toHaveBeenCalled();
+      expect((await service.getData("poe1", "Covens")).rows).toHaveLength(3);
+    });
+
+    it("does not import PoE1 data for a PoE2 request", async () => {
+      await service.getData("poe2", "Dawn");
+
+      expect(mockEnsurePoe1LeagueData).not.toHaveBeenCalled();
+    });
+
     it("should return weights regardless of user's active league", async () => {
       // User has "Standard" selected — weights now come from the league
       // passed to getData directly
@@ -1506,21 +1615,19 @@ describe("ProfitForecastService", () => {
       expect(result.rows).toHaveLength(3);
     });
 
-    it("should return weights even when snapshot query throws", async () => {
+    it("returns a sanitized error when the snapshot lookup fails", async () => {
       chains.leagueChain.executeTakeFirst.mockRejectedValue(
         new Error("DB read error"),
       );
 
-      // getData will throw, but let's verify the behavior through the IPC handler
-      // which has try/catch wrapping
       const handler = getIpcHandler(
         mockIpcHandle,
         ProfitForecastChannel.GetData,
       );
-      // The error will propagate since it's not an IpcValidationError
-      await expect(handler({}, "poe1", "Keepers")).rejects.toThrow(
-        "DB read error",
-      );
+      expect(await handler({}, "poe1", "Keepers")).toEqual({
+        success: false,
+        error: "Unable to load profit forecast data. Please try again.",
+      });
     });
   });
 

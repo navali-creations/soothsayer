@@ -5,6 +5,7 @@ import type {
   ProfitForecastComputeRequest,
   ProfitForecastComputeResponse,
   ProfitForecastDataDTO,
+  ProfitForecastDataResult,
 } from "./ProfitForecast.dto";
 
 export const ProfitForecastAPI = {
@@ -23,11 +24,19 @@ export const ProfitForecastAPI = {
    *
    * All heavy computation (row building, EV, base rate) is performed main-side.
    */
-  getData: (
+  getData: async (
     game: "poe1" | "poe2",
     league: string,
   ): Promise<ProfitForecastDataDTO> => {
-    return ipcRenderer.invoke(ProfitForecastChannel.GetData, game, league);
+    const result: ProfitForecastDataResult = await ipcRenderer.invoke(
+      ProfitForecastChannel.GetData,
+      game,
+      league,
+    );
+    if ("success" in result) {
+      throw new Error(result.error);
+    }
+    return result;
   },
 
   /**

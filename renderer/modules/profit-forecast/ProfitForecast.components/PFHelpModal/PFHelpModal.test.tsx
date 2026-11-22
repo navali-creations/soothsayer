@@ -141,5 +141,6 @@ describe("PFHelpModal", () => {
     expect(
       screen.getByText(/All figures are estimates based on poe\.ninja/),
     ).toBeInTheDocument();
+    expect(screen.getByText(/wraeclast\.cards weights/)).toBeInTheDocument();
   });
 });

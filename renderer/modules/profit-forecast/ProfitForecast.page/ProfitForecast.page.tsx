@@ -115,7 +115,7 @@ const ProfitForecastPage = () => {
   // ─── Derived state ─────────────────────────────────────────────────────
 
   const snapshotIsNull = snapshotFetchedAt === null && !isLoading && !error;
-  const plWeightsEmpty = rows.length === 0 && !isLoading && !error;
+  const weightsEmpty = rows.length === 0 && !isLoading && !error;
 
   return (
     <PageContainer>
@@ -182,13 +182,13 @@ const ProfitForecastPage = () => {
           </div>
         )}
 
-        {/* No PL weights hint */}
-        {plWeightsEmpty && !snapshotIsNull && (
+        {/* No bundled weights hint */}
+        {weightsEmpty && !snapshotIsNull && (
           <div className="alert alert-soft alert-warning shrink-0">
             <FiAlertTriangle className="shrink-0 w-5 h-5" />
             <span>
-              No Prohibited Library data loaded &mdash; visit Settings to
-              reload.
+              No card weight data available for this league. Weights are bundled
+              from wraeclast.cards &mdash; check for an app update.
             </span>
           </div>
         )}

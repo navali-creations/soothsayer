@@ -1,7 +1,9 @@
 import { ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
+import { DivinationCardsService } from "~/main/modules/divination-cards/DivinationCards.service";
 import { LoggerService } from "~/main/modules/logger";
+import { PoeLeaguesRepository } from "~/main/modules/poe-leagues/PoeLeagues.repository";
 import {
   assertArray,
   assertBoundedString,
@@ -24,6 +26,7 @@ import type {
   ProfitForecastComputeRequest,
   ProfitForecastComputeResponse,
   ProfitForecastDataDTO,
+  ProfitForecastDataResult,
   ProfitForecastRowDTO,
   ProfitForecastSnapshotDTO,
   ProfitForecastWeightDTO,
@@ -35,7 +38,7 @@ const RATE_FLOOR = 20;
 /**
  * Minimum per-card probability floor.
  *
- * The Prohibited Library weights are estimated from a finite sample. For
+ * The bundled card weights are estimated from a finite sample. For
  * ultra-rare cards (House of Mirrors, The Apothecary, etc.) the sample
  * is too small to produce accurate weights — many get weight 0 or single-
  * digit values out of a ~1.5 M total, yielding probabilities like 6e-7.
@@ -52,10 +55,10 @@ const PROBABILITY_FLOOR = 1 / 50_000;
 /**
  * Empirical EV calibration factor.
  *
- * Prohibited Library weights are derived from a finite community sample that
+ * The original calibration used a finite community sample that
  * systematically underestimates the drop probability of mid-to-high value
  * cards.  Across many empirical stacked-deck sessions (5k / 10k / 25k runs),
- * the actual returns are consistently ~25 % higher than the raw PL-weighted
+ * the actual returns are consistently ~25 % higher than the raw weighted
  * model predicts.
  *
  * Rather than trying to correct individual card probabilities (which would
@@ -66,7 +69,7 @@ const PROBABILITY_FLOOR = 1 / 50_000;
  *
  * The factor was estimated by comparing model-predicted EV against observed
  * session P&L across multiple league snapshots.  It should be revisited if
- * the PL dataset methodology changes or if a Bayesian smoothing layer is
+ * the weight dataset methodology changes or if a Bayesian smoothing layer is
  * added later.
  */
 const EV_CALIBRATION_FACTOR = 1.25;
@@ -82,6 +85,7 @@ export class ProfitForecastService {
   private static _instance: ProfitForecastService;
   private readonly logger = LoggerService.createLogger("ProfitForecast");
   private readonly kysely;
+  private readonly leagueRepository: PoeLeaguesRepository;
 
   static getInstance(): ProfitForecastService {
     if (!ProfitForecastService._instance) {
@@ -93,6 +97,7 @@ export class ProfitForecastService {
   private constructor() {
     const db = DatabaseService.getInstance();
     this.kysely = db.getKysely();
+    this.leagueRepository = new PoeLeaguesRepository(this.kysely);
 
     this.setupIpcHandlers();
 
@@ -110,14 +115,21 @@ export class ProfitForecastService {
         _event,
         game: unknown,
         league: unknown,
-      ): Promise<ProfitForecastDataDTO | { success: false; error: string }> => {
+      ): Promise<ProfitForecastDataResult> => {
         try {
           assertGameType(game, ProfitForecastChannel.GetData);
           assertBoundedString(league, "league", ProfitForecastChannel.GetData);
 
           return await this.getData(game, league);
         } catch (error) {
-          return handleValidationError(error, ProfitForecastChannel.GetData);
+          if (error instanceof IpcValidationError) {
+            return handleValidationError(error, ProfitForecastChannel.GetData);
+          }
+          this.logger.error("Failed to load profit forecast data:", error);
+          return {
+            success: false,
+            error: "Unable to load profit forecast data. Please try again.",
+          };
         }
       },
     );
@@ -203,6 +215,18 @@ export class ProfitForecastService {
     game: "poe1" | "poe2",
     league: string,
   ): Promise<ProfitForecastDataDTO> {
+    // Permanent leagues remain available between challenge leagues and offline.
+    // Every other request must match an active league supplied by the league API.
+    if (league !== "Standard" && league !== "Hardcore") {
+      const cachedLeague = await this.leagueRepository.getLeague(game, league);
+      if (!cachedLeague?.isActive) {
+        throw new IpcValidationError(
+          ProfitForecastChannel.GetData,
+          "Select an active league to load the profit forecast.",
+        );
+      }
+    }
+
     // Fetch weights first — we always return these even without a snapshot
     const weights = await this.getWeights(game, league);
 
@@ -505,20 +529,19 @@ export class ProfitForecastService {
   }
 
   /**
-   * Get PL card weights for the given game.
-   *
-   * Delegates to `plService.ensureLoaded()` which lazily parses the
-   * bundled CSV on first access, then queries the metadata league
-   * (the league the CSV data was stored under — e.g. "Keepers").
-   *
-   * The user's active league setting is irrelevant here — the weights
-   * are model-estimated values that apply cross-league.
+   * Get the requested league's bundled wraeclast.cards weights.
+   * Startup may have imported a different league before onboarding completed.
+   * Ensure this league is imported before querying its availability rows.
    */
   private async getWeights(
     game: "poe1" | "poe2",
     league: string,
   ): Promise<ProfitForecastWeightDTO[]> {
     try {
+      if (game === "poe1") {
+        await DivinationCardsService.getInstance().ensurePoe1LeagueData(league);
+      }
+
       // Read weights directly from divination_card_availability
       const rows = await this.kysely
         .selectFrom("divination_card_availability as dca")
@@ -555,7 +578,7 @@ export class ProfitForecastService {
       }));
     } catch (error) {
       this.logger.error(`Failed to load weights for game=${game}:`, error);
-      return [];
+      throw error;
     }
   }
 }

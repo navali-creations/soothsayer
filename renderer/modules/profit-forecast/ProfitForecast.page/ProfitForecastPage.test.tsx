@@ -189,6 +189,33 @@ describe("ProfitForecastPage", () => {
       );
     });
 
+    it("retries import errors independently of the price refresh cooldown", async () => {
+      const refreshPrices = vi.fn();
+      const state = setupStore({
+        profitForecast: {
+          error: "Unable to load profit forecast data. Please try again.",
+        },
+        poeNinja: {
+          refreshPrices,
+          getRefreshableAt: () => new Date(Date.now() + 60_000).toISOString(),
+        },
+      });
+      const { user } = renderWithProviders(<ProfitForecastPage />);
+
+      const retry = screen.getByRole("button", { name: "Retry" });
+      expect(retry).toBeEnabled();
+      await user.click(retry);
+
+      expect(state.profitForecast.fetchData).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+      );
+      expect(refreshPrices).not.toHaveBeenCalled();
+      expect(
+        screen.queryByText(/check for an app update/),
+      ).not.toBeInTheDocument();
+    });
+
     it("shows no-snapshot alert when snapshotFetchedAt is null and not loading/error", () => {
       setupStore({
         profitForecast: {
@@ -204,7 +231,7 @@ describe("ProfitForecastPage", () => {
       ).toBeInTheDocument();
     });
 
-    it("shows no-PL-weights alert when rows empty, snapshotFetchedAt set, not loading/error", () => {
+    it("shows no-weight-data alert when rows empty, snapshotFetchedAt set, not loading/error", () => {
       setupStore({
         profitForecast: {
           rows: [],
@@ -216,8 +243,14 @@ describe("ProfitForecastPage", () => {
       renderWithProviders(<ProfitForecastPage />);
 
       expect(
-        screen.getByText(/No Prohibited Library data loaded/i),
+        screen.getByText(/No card weight data available for this league/i),
       ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Weights are bundled from wraeclast\.cards/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/visit Settings to reload/i),
+      ).not.toBeInTheDocument();
     });
 
     it("shows refreshing info alert when isRefreshing is true", () => {
@@ -498,7 +531,7 @@ describe("ProfitForecastPage", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("does not show no-PL-weights alert when snapshotFetchedAt is null (no-snapshot takes precedence)", () => {
+    it("does not show no-weight-data alert when snapshotFetchedAt is null (no-snapshot takes precedence)", () => {
       setupStore({
         profitForecast: {
           rows: [],
@@ -509,13 +542,13 @@ describe("ProfitForecastPage", () => {
       });
       renderWithProviders(<ProfitForecastPage />);
 
-      // snapshotIsNull is true, which suppresses plWeightsEmpty alert
+      // snapshotIsNull is true, which suppresses weightsEmpty alert
       expect(
-        screen.queryByText(/No Prohibited Library data loaded/i),
+        screen.queryByText(/No card weight data available for this league/i),
       ).not.toBeInTheDocument();
     });
 
-    it("does not show no-PL-weights alert when rows have data", () => {
+    it("does not show no-weight-data alert when rows have data", () => {
       setupStore({
         profitForecast: {
           rows: [{ name: "The Doctor" }],
@@ -527,7 +560,7 @@ describe("ProfitForecastPage", () => {
       renderWithProviders(<ProfitForecastPage />);
 
       expect(
-        screen.queryByText(/No Prohibited Library data loaded/i),
+        screen.queryByText(/No card weight data available for this league/i),
       ).not.toBeInTheDocument();
     });
 

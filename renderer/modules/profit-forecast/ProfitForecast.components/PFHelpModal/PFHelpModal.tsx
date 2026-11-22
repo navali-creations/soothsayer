@@ -272,9 +272,9 @@ const PFHelpModal = ({ isOpen, onClose }: PFHelpModalProps) => {
               <FiAlertTriangle className="w-4 h-4 shrink-0" />
               <span>
                 All figures are estimates based on poe.ninja market data and
-                Prohibited Library card weights. Actual results will vary due to
-                RNG, market fluctuations, and exchange liquidity. The sliding
-                cost model is an approximation — always check the live exchange
+                wraeclast.cards weights. Actual results will vary due to RNG,
+                market fluctuations, and exchange liquidity. The sliding cost
+                model is an approximation — always check the live exchange
                 before committing to large purchases.
               </span>
             </div>

@@ -12,8 +12,8 @@
  * - App must be built (`.vite/build/main.cjs` exists)
  * - Uses `seedSessionPrerequisites` + `seedLeagueCache` to populate a league,
  *   snapshot, card prices, AND the UI league dropdown so `fetchData` fires
- * - Table rows require both seeded snapshot prices AND Prohibited Library
- *   weights (auto-loaded from the bundled CSV at app startup)
+ * - Table rows require both seeded snapshot prices AND bundled wraeclast.cards
+ *   weights (imported from the bundled package for the requested league)
  *
  * @module e2e/flows/profit-forecast/profit-forecast-structure
  */
@@ -55,7 +55,7 @@ import {
  *
  * Strategy: first wait for the loading indicator to **appear** (phase 0 → 1),
  * then wait for it to **disappear** (phase 1 → 2), then wait for the table
- * to have rows or a genuine "No Prohibited Library data" empty-state.
+ * to have rows or a genuine "No card weight data available" empty-state.
  */
 async function waitForDataSettled(page: Page) {
   // 1. Wait for the loading spinner / text to appear.
@@ -79,7 +79,7 @@ async function waitForDataSettled(page: Page) {
   // 3. Wait for the table to populate OR a genuine empty-state.
   //    We explicitly exclude "No cards match the current filters" because
   //    that text can flash during the pre-fetch frame (phase 0).  Instead
-  //    we wait for either table rows or the "No Prohibited Library data"
+  //    we wait for either table rows or the "No card weight data available"
   //    banner which only appears after a real fetch completes with 0 weights.
   await expect
     .poll(
@@ -95,7 +95,7 @@ async function waitForDataSettled(page: Page) {
 
         // Genuine empty-states that prove the fetch ran and returned no data
         const text = (await page.locator("main").textContent()) ?? "";
-        if (text.includes("No Prohibited Library data")) return true;
+        if (text.includes("No card weight data available")) return true;
         if (text.includes("No snapshot")) return true;
         if (text.includes("No price data")) return true;
 

@@ -1,7 +1,7 @@
 /**
  * Data Transfer Objects for the Profit Forecast module.
  *
- * The Profit Forecast page combines Prohibited Library card weights with
+ * The Profit Forecast page combines bundled wraeclast.cards weights with
  * poe.ninja snapshot prices to project returns from bulk stacked deck openings.
  *
  * The main process now pre-computes rows, EV, and base rate server-side,
@@ -45,7 +45,7 @@ export interface ProfitForecastSnapshotDTO {
 }
 
 /**
- * A single card's weight entry from the Prohibited Library dataset.
+ * A single card's weight entry from the bundled wraeclast.cards dataset.
  * Non-boss cards with zero league weight are assigned the minimum observed
  * weight (floor) so they appear as ultra-rare rather than being excluded.
  *
@@ -93,6 +93,11 @@ export interface ProfitForecastDataDTO {
   baseRate: number;
   baseRateSource: BaseRateSource;
 }
+
+/** Data or a sanitized error returned across the IPC boundary. */
+export type ProfitForecastDataResult =
+  | ProfitForecastDataDTO
+  | { success: false; error: string };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Compute IPC types (used by the profit-forecast:compute channel)

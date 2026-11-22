@@ -89,14 +89,6 @@ vi.mock("~/main/utils/resolve-poe1-package-path", () => ({
   resolvePoe1CardsJsonPath: mockResolvePoe1CardsJsonPath,
 }));
 
-// ─── Mock resolve-dev-path ───────────────────────────────────────────────────
-vi.mock("~/main/utils/resolve-dev-path", () => ({
-  resolveProjectRoot: vi.fn((startPath: string) => startPath),
-  resolveDevFile: vi.fn(
-    (startPath: string, filePath: string) => `${startPath}/${filePath}`,
-  ),
-}));
-
 // ─── Mock weight-to-rarity ──────────────────────────────────────────────────
 vi.mock("~/main/utils/weight-to-rarity", () => ({
   weightToDropRarity: vi.fn((weight: number) => {
@@ -333,7 +325,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(registeredChannels).toContain("divination-cards:search-by-name");
       expect(registeredChannels).toContain("divination-cards:get-count");
       expect(registeredChannels).toContain("divination-cards:get-stats");
-      expect(registeredChannels).toContain("divination-cards:force-sync");
+      expect(registeredChannels).not.toContain("divination-cards:force-sync");
       expect(registeredChannels).toContain("divination-cards:update-rarity");
     });
   });
@@ -795,97 +787,6 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
   });
 
-  // ─── ForceSync handler ────────────────────────────────────────────────
-
-  describe("ForceSync handler", () => {
-    it("should sync poe1 cards from JSON and return success", async () => {
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        "divination-cards:force-sync",
-      );
-      const result = await handler({}, "poe1");
-
-      expect(mockReadFileSync).toHaveBeenCalled();
-      expect(result).toEqual({ success: true });
-    });
-
-    it("should sync poe2 cards from JSON and return success", async () => {
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        "divination-cards:force-sync",
-      );
-      const result = await handler({}, "poe2");
-
-      expect(mockReadFileSync).toHaveBeenCalled();
-      expect(result).toEqual({ success: true });
-    });
-
-    it("should return validation error for invalid game type", async () => {
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        "divination-cards:force-sync",
-      );
-      const result = await handler({}, "invalid");
-
-      expect(result).toEqual({
-        success: false,
-        error: expect.stringContaining("Invalid input"),
-      });
-    });
-
-    it("should insert new cards during sync", async () => {
-      // getAllCardHashes returns empty map → all cards are new
-      mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
-
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        "divination-cards:force-sync",
-      );
-      await handler({}, "poe1");
-
-      // Should call insertCard for each card in the JSON (2 cards)
-      expect(mockRepositoryInsertCard).toHaveBeenCalledTimes(2);
-    });
-
-    it("should update cards when hash differs during sync", async () => {
-      // getAllCardHashes returns different hashes → cards need update
-      mockRepositoryGetAllCardHashes.mockResolvedValue(
-        new Map([
-          ["The Doctor", "different-old-hash"],
-          ["Rain of Chaos", "different-old-hash"],
-        ]),
-      );
-
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        "divination-cards:force-sync",
-      );
-      await handler({}, "poe1");
-
-      expect(mockRepositoryUpdateCard).toHaveBeenCalledTimes(2);
-      expect(mockRepositoryInsertCard).not.toHaveBeenCalled();
-    });
-
-    it("should skip cards when hash matches during sync", async () => {
-      // getAllCardHashes returns matching hash → cards are unchanged
-      mockRepositoryGetAllCardHashes.mockResolvedValue(
-        new Map([
-          ["The Doctor", "mock-hash-value"],
-          ["Rain of Chaos", "mock-hash-value"],
-        ]),
-      );
-
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        "divination-cards:force-sync",
-      );
-      await handler({}, "poe1");
-
-      expect(mockRepositoryInsertCard).not.toHaveBeenCalled();
-      expect(mockRepositoryUpdateCard).not.toHaveBeenCalled();
-    });
-  });
-
   // ─── initialize ───────────────────────────────────────────────────────
 
   describe("initialize", () => {
@@ -1008,6 +909,61 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
   });
 
   // ─── ensureCardsFromSnapshot ──────────────────────────────────────────
+
+  describe("ensurePoe1LeagueData", () => {
+    it("imports a league selected after startup without reimporting completed leagues", async () => {
+      await service.initialize();
+      mockResolvePoe1CardsJsonPath.mockReturnValue("/mock/cards-Covens.json");
+
+      await service.ensurePoe1LeagueData("Covens");
+      await service.ensurePoe1LeagueData("Covens");
+
+      expect(mockResolvePoe1CardsJsonPath).toHaveBeenCalledWith(
+        "Covens",
+        false,
+        process.resourcesPath,
+      );
+      expect(mockReadFileSync).toHaveBeenCalledTimes(2);
+    });
+
+    it("shares an in-flight import between readers", async () => {
+      await Promise.all([
+        service.ensurePoe1LeagueData("Covens"),
+        service.ensurePoe1LeagueData("Covens"),
+      ]);
+
+      expect(mockReadFileSync).toHaveBeenCalledTimes(1);
+      expect(mockRepositoryInsertCard).toHaveBeenCalledTimes(2);
+    });
+
+    it("retries after a missing bundle becomes available", async () => {
+      mockReadFileSync.mockImplementationOnce(() => {
+        throw Object.assign(new Error("File not found"), { code: "ENOENT" });
+      });
+
+      await expect(service.ensurePoe1LeagueData("Covens")).rejects.toThrow(
+        "File not found",
+      );
+      await service.ensurePoe1LeagueData("Covens");
+
+      expect(mockReadFileSync).toHaveBeenCalledTimes(2);
+      expect(mockRepositoryInsertCard).toHaveBeenCalledTimes(2);
+    });
+
+    it("retries a failed import instead of retaining its rejected promise", async () => {
+      mockRepositoryGetAllCardHashes.mockRejectedValueOnce(
+        new Error("Database busy"),
+      );
+
+      await expect(service.ensurePoe1LeagueData("Covens")).rejects.toThrow(
+        "Database busy",
+      );
+      await service.ensurePoe1LeagueData("Covens");
+
+      expect(mockReadFileSync).toHaveBeenCalledTimes(2);
+      expect(mockRepositoryInsertCard).toHaveBeenCalledTimes(2);
+    });
+  });
 
   describe("ensureCardsFromSnapshot", () => {
     it("should insert stub cards for names not in the database", async () => {
@@ -1991,19 +1947,6 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       });
     });
 
-    it("ForceSync should reject array game", async () => {
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        "divination-cards:force-sync",
-      );
-      const result = await handler({}, ["poe1"]);
-
-      expect(result).toEqual({
-        success: false,
-        error: expect.stringContaining("Invalid input"),
-      });
-    });
-
     it("SearchByName should reject both invalid game and query", async () => {
       const handler = getIpcHandler(
         mockIpcHandle,
@@ -2241,22 +2184,6 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "Card",
         undefined,
         null,
-      );
-    });
-
-    it("defaults force-sync to Standard", async () => {
-      mockSettingsGet.mockResolvedValue(null);
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        "divination-cards:force-sync",
-      );
-
-      await handler({}, "poe1");
-
-      expect(mockResolvePoe1CardsJsonPath).toHaveBeenCalledWith(
-        "Standard",
-        false,
-        process.resourcesPath,
       );
     });
   });

@@ -62,13 +62,6 @@ export const DivinationCardsApi = {
   },
 
   /**
-   * Force re-sync from JSON (for debugging/manual refresh)
-   */
-  forceSync: (game: "poe1" | "poe2"): Promise<{ success: boolean }> => {
-    return ipcRenderer.invoke(DivinationCardsChannel.ForceSync, game);
-  },
-
-  /**
    * Update the rarity of a single card (manual override)
    * @param game - The game type ("poe1" or "poe2")
    * @param cardName - The name of the card to update
