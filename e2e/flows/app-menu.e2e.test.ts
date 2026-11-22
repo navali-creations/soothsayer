@@ -852,6 +852,10 @@ test.describe("AppMenu", () => {
         await expect(minorTab).toBeVisible({ timeout: 5_000 });
         await expect(patchTab).toBeVisible({ timeout: 5_000 });
         await expect(patchTab).toHaveAttribute("aria-selected", "true");
+        await expect(dialog.getByRole("tab")).toHaveText([
+          "v99.18.1",
+          "v99.18.0",
+        ]);
         await expect(modalBox).toContainText("Patch release body");
         await expectWhatsNewModalFixedHeight(modalBox);
 
@@ -965,6 +969,10 @@ test.describe("AppMenu", () => {
         await expect(patchTab).toBeVisible({ timeout: 5_000 });
         await expect(minorTab).toHaveAttribute("aria-selected", "true");
         await expect(patchTab).toHaveAttribute("aria-selected", "false");
+        await expect(dialog.getByRole("tab")).toHaveText([
+          "v99.18.1",
+          "v99.18.0",
+        ]);
         await expect(modalBox).toContainText("Minor release body");
         await expectWhatsNewModalFixedHeight(modalBox);
 

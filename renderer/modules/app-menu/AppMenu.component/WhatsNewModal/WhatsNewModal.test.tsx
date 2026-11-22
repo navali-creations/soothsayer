@@ -277,8 +277,8 @@ describe("WhatsNewModal", () => {
     );
   });
 
-  it("shows release version tabs when multiple releases are available", () => {
-    setupStore({
+  it("shows release version tabs newest first without changing the stored order", () => {
+    const state = setupStore({
       appMenu: {
         whatsNewRelease: {
           version: "1.5.0",
@@ -306,8 +306,13 @@ describe("WhatsNewModal", () => {
         whatsNewSelectedVersion: "1.5.0",
       },
     });
+    Object.freeze(state.appMenu.whatsNewReleases);
     renderWithProviders(<WhatsNewModal />);
 
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "v1.5.1",
+      "v1.5.0",
+    ]);
     expect(screen.getByRole("tab", { name: "v1.5.0" })).toHaveClass(
       "bg-success/15",
       "text-success",
