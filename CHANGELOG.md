@@ -1,5 +1,15 @@
 # soothsayer
 
+## 1.2.2
+
+### Patch Changes
+
+- [`145ea7b`](https://github.com/navali-creations/soothsayer/commit/145ea7b8ee90c52d2201a4a1c4f67c9a7b147ffd) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Background updates no longer bring Soothsayer to the foreground and interrupt gameplay on Windows.
+
+  Downloaded updates remain available through the update indicator, ready to install when you choose.
+
 ## 1.2.1
 
 ### Patch Changes
