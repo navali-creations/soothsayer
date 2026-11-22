@@ -74,14 +74,15 @@ async function initializeSupabase(
 }
 
 async function bootstrap(): Promise<void> {
-  await initializeSentry();
-
   // Handle Squirrel.Windows installer events (creates/removes shortcuts, etc.)
   // This must be called early — if it returns true, the app is being run by the
   // Squirrel installer and should quit immediately.
   if (started) {
     electronApp.quit();
+    return;
   }
+
+  await initializeSentry();
 
   // Initialize diagnostic logging as early as possible so all subsequent
   // console.log/warn/error calls are captured to diag.log. The constructor

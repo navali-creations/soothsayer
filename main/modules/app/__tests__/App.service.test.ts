@@ -479,6 +479,34 @@ describe("AppService", () => {
   // ─── emitSecondInstance ──────────────────────────────────────────────────
 
   describe("emitSecondInstance", () => {
+    it.each([
+      "--squirrel-install",
+      "--squirrel-updated",
+      "--squirrel-uninstall",
+      "--squirrel-obsolete",
+    ])("does not foreground the app for installer event %s", (argument) => {
+      const mainWindow = { show: vi.fn() };
+      mockAppOn.mockClear();
+      service.emitSecondInstance(mainWindow as any);
+
+      const handler = getAppEventHandler(AppChannel.SecondInstance);
+      handler({}, ["Soothsayer.exe", argument, "1.2.1"], "/working-dir");
+
+      expect(mainWindow.show).not.toHaveBeenCalled();
+      expect(mockGggHandleCallback).not.toHaveBeenCalled();
+    });
+
+    it("still opens the app after an explicit first-run launch", () => {
+      const mainWindow = { show: vi.fn() };
+      mockAppOn.mockClear();
+      service.emitSecondInstance(mainWindow as any);
+
+      const handler = getAppEventHandler(AppChannel.SecondInstance);
+      handler({}, ["Soothsayer.exe", "--squirrel-firstrun"], "/working-dir");
+
+      expect(mainWindow.show).toHaveBeenCalledTimes(1);
+    });
+
     it("should register a second-instance event handler", () => {
       const mockMainWindow = {
         isMinimized: vi.fn(() => false),
@@ -495,19 +523,23 @@ describe("AppService", () => {
       );
     });
 
-    it("should call show on the main window on second instance", () => {
-      const mockMainWindow = {
-        show: vi.fn(),
-      };
+    it.each(["win32", "darwin", "linux"])(
+      "opens the main window for a normal second launch on %s",
+      (platform) => {
+        Object.defineProperty(process, "platform", { value: platform });
+        const mockMainWindow = {
+          show: vi.fn(),
+        };
 
-      mockAppOn.mockClear();
-      service.emitSecondInstance(mockMainWindow as any);
+        mockAppOn.mockClear();
+        service.emitSecondInstance(mockMainWindow as any);
 
-      const handler = getAppEventHandler(AppChannel.SecondInstance);
-      handler({}, ["app-path"], "/working-dir");
+        const handler = getAppEventHandler(AppChannel.SecondInstance);
+        handler({}, ["app-path"], "/working-dir");
 
-      expect(mockMainWindow.show).toHaveBeenCalled();
-    });
+        expect(mockMainWindow.show).toHaveBeenCalled();
+      },
+    );
 
     it("should handle null mainWindow gracefully", () => {
       mockAppOn.mockClear();

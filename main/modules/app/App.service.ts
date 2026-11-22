@@ -21,6 +21,13 @@ import { System } from "../../../enums";
 import pkgJson from "../../../package.json" with { type: "json" };
 import { AppChannel } from "./App.channels";
 
+const SQUIRREL_LIFECYCLE_ARGUMENTS = new Set([
+  "--squirrel-install",
+  "--squirrel-updated",
+  "--squirrel-uninstall",
+  "--squirrel-obsolete",
+]);
+
 class AppService {
   public isQuitting: boolean = false;
   private app: App;
@@ -99,6 +106,16 @@ class AppService {
   public emitSecondInstance(mainWindow: MainWindowServiceType) {
     this.app.on(AppChannel.SecondInstance, (_event, commandLine) => {
       if (!mainWindow) {
+        return;
+      }
+
+      // Installer maintenance launches are not requests to open the app.
+      if (
+        process.platform === System.Windows &&
+        commandLine.some((argument) =>
+          SQUIRREL_LIFECYCLE_ARGUMENTS.has(argument),
+        )
+      ) {
         return;
       }
 

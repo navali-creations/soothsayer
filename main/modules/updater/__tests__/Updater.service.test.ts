@@ -1902,6 +1902,7 @@ describe("UpdaterService", () => {
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
+      mockWindow.isMinimized.mockReturnValue(true);
       service.initialize(mockWindow);
 
       const handler = mockAutoUpdaterOn.mock.calls.find(
@@ -1940,6 +1941,10 @@ describe("UpdaterService", () => {
         UpdaterChannel.OnDownloadProgress,
         expect.objectContaining({ percent: 100 }),
       );
+      expect(mockWindow.show).not.toHaveBeenCalled();
+      expect(mockWindow.restore).not.toHaveBeenCalled();
+      expect(mockWindow.focus).not.toHaveBeenCalled();
+      expect(mockAutoUpdaterQuitAndInstall).not.toHaveBeenCalled();
     });
 
     it("should set updateStatus to 'error' on autoUpdater error event", () => {

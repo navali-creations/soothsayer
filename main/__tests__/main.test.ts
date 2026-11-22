@@ -9,6 +9,7 @@ const {
   mockSentryCaptureException,
   mockAppGetInstance,
   mockAppQuit,
+  mockElectronAppQuit,
   mockAppEmitSecondInstance,
   mockAppEmitRestart,
   mockAppEmitGetVersion,
@@ -39,6 +40,7 @@ const {
   mockSentryCaptureException: vi.fn(),
   mockAppGetInstance: vi.fn(),
   mockAppQuit: vi.fn(),
+  mockElectronAppQuit: vi.fn(),
   mockAppEmitSecondInstance: vi.fn(),
   mockAppEmitRestart: vi.fn(),
   mockAppEmitGetVersion: vi.fn(),
@@ -75,7 +77,9 @@ const mockEnv = vi.hoisted(() => ({
 
 // ─── Mock electron-squirrel-startup ──────────────────────────────────────────
 vi.mock("electron-squirrel-startup", () => ({
-  default: mockSquirrelStartup.value,
+  get default() {
+    return mockSquirrelStartup.value;
+  },
 }));
 
 // ─── Mock SentryService (must be first — imported at top of main.ts) ────────
@@ -99,6 +103,7 @@ vi.mock("~/main/modules/sentry/Sentry.reporter", () => ({
 // ─── Mock Electron ───────────────────────────────────────────────────────────
 vi.mock("electron", () => ({
   app: {
+    quit: mockElectronAppQuit,
     requestSingleInstanceLock: mockRequestSingleInstanceLock,
     whenReady: mockWhenReady,
     get isPackaged() {
@@ -269,6 +274,7 @@ describe("main.ts", () => {
     vi.clearAllMocks();
     // Reset module registry so main.ts can be re-imported fresh
     vi.resetModules();
+    mockSquirrelStartup.value = false;
 
     // Default env with Supabase credentials present
     setMainEnvValue("VITE_SUPABASE_URL", mockEnv.VITE_SUPABASE_URL);
@@ -296,6 +302,20 @@ describe("main.ts", () => {
     env.VITE_SUPABASE_PUBLISHABLE_KEY =
       originalEnv.VITE_SUPABASE_PUBLISHABLE_KEY;
     env.VITE_SUPABASE_ANON_KEY = originalEnv.VITE_SUPABASE_ANON_KEY;
+  });
+
+  it("exits installer helper launches before services or the single-instance lock start", async () => {
+    mockSquirrelStartup.value = true;
+
+    await importMain();
+
+    expect(mockElectronAppQuit).toHaveBeenCalledTimes(1);
+    expect(mockSentryInitialize).not.toHaveBeenCalled();
+    expect(mockAppGetInstance).not.toHaveBeenCalled();
+    expect(mockMainWindowGetInstance).not.toHaveBeenCalled();
+    expect(mockRequestSingleInstanceLock).not.toHaveBeenCalled();
+    expect(mockWhenReady).not.toHaveBeenCalled();
+    expect(mockSentryCaptureException).not.toHaveBeenCalled();
   });
 
   // ─── Sentry Initialization ──────────────────────────────────────────────
