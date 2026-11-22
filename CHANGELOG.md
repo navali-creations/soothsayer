@@ -1,5 +1,22 @@
 # soothsayer
 
+## 1.2.1
+
+### Patch Changes
+
+- [`447ed09`](https://github.com/navali-creations/soothsayer/commit/447ed09fdb5884f3fc794ee43cf2479e9ccda90a) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** The version selector in **What's New** now shows releases from newest to oldest.
+
+- [`9fa089c`](https://github.com/navali-creations/soothsayer/commit/9fa089cd6123debef66016338701f5494ca1eeb9) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** **Profit Forecast** now loads card weights correctly after setup on a fresh installation.
+
+  Choosing a league no longer requires an app restart before its forecast can load.
+
+  - **Load recovery:** failed loads show a clear error and a **Retry** button that works independently of the price refresh cooldown.
+  - **Updated guidance:** source information now credits **wraeclast.cards** and removes the outdated Prohibited Library reload instructions.
+
 ## 1.2.0
 
 ### Minor Changes
